@@ -3,18 +3,24 @@ import uuid
 import asyncio
 import logging
 from pathlib import Path
-from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-import socketio
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from database import create_pool, close_pool, upsert_notes, get_all_notes, increment_highlight, add_comment, get_comments
+from supabase_client import (
+    create_room,
+    get_room_by_code,
+    upsert_notes,
+    get_notes_for_room,
+    increment_highlight,
+    add_comment,
+    get_comments_for_room,
+)
 from gemini_service import send_image_to_gemini
 
 logging.basicConfig(level=logging.INFO)
@@ -26,19 +32,7 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 DIAGRAMS_DIR = UPLOADS_DIR / "diagrams"
 DIAGRAMS_DIR.mkdir(exist_ok=True)
 
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await create_pool()
-    logger.info("Database connected")
-    yield
-    await close_pool()
-    logger.info("Database connection closed")
-
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,12 +42,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files for serving generated diagrams
+# Serve generated diagram images
 app.mount("/diagrams", StaticFiles(directory=str(DIAGRAMS_DIR)), name="diagrams")
 
 
-@app.post("/upload-image")
-async def upload_image(file: UploadFile = File(...)):
+# ---------------------------------------------------------------------------
+# Room endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/rooms")
+async def api_create_room(body: dict | None = None):
+    """Create a new room. Returns the room object with its join code."""
+    name = body.get("name") if body else None
+    room = create_room(name)
+    logger.info(f"Room created: {room['code']}")
+    return room
+
+
+@app.get("/rooms/{code}")
+async def api_get_room(code: str):
+    """Look up a room by its join code."""
+    room = get_room_by_code(code)
+    if not room:
+        raise HTTPException(404, "Room not found or inactive")
+    return room
+
+
+# ---------------------------------------------------------------------------
+# Notes endpoints (room-scoped)
+# ---------------------------------------------------------------------------
+
+@app.post("/rooms/{code}/upload-image")
+async def upload_image(code: str, file: UploadFile = File(...)):
+    """Upload a chalkboard image for processing in a specific room."""
+    room = get_room_by_code(code)
+    if not room:
+        raise HTTPException(404, "Room not found")
+
     ext = Path(file.filename).suffix if file.filename else ".png"
     filename = f"{uuid.uuid4()}{ext}"
     filepath = UPLOADS_DIR / filename
@@ -63,65 +88,53 @@ async def upload_image(file: UploadFile = File(...)):
         f.write(contents)
 
     try:
-        # Run synchronous Gemini call in a thread so the event loop stays free
-        # for Socket.IO heartbeats and client connections
         sections = await asyncio.to_thread(
             send_image_to_gemini, str(filepath), True, DIAGRAMS_DIR
         )
     except Exception as e:
         logger.error(f"Gemini API error: {e}")
-        return {"error": "Failed to process image with Gemini", "detail": str(e)}
+        raise HTTPException(502, f"Failed to process image: {e}")
 
-    await upsert_notes(sections)
-    notes = await get_all_notes()
-    await sio.emit("notes_update", notes)
+    # Write results to Supabase — Realtime will push updates to clients
+    upsert_notes(room["id"], sections)
+    notes = get_notes_for_room(room["id"])
 
     return {"sections": sections, "notes": notes}
 
 
-@app.get("/notes")
-async def get_notes():
-    notes = await get_all_notes()
-    return notes
+@app.get("/rooms/{code}/notes")
+async def api_get_notes(code: str):
+    """Get all notes for a room."""
+    room = get_room_by_code(code)
+    if not room:
+        raise HTTPException(404, "Room not found")
+    return get_notes_for_room(room["id"])
 
 
-@app.get("/comments")
-async def get_comments_endpoint():
-    comments = await get_comments()
-    return comments
+@app.get("/rooms/{code}/comments")
+async def api_get_comments(code: str):
+    """Get all comments for a room."""
+    room = get_room_by_code(code)
+    if not room:
+        raise HTTPException(404, "Room not found")
+    return get_comments_for_room(room["id"])
 
 
-# Socket.IO events
+@app.post("/rooms/{code}/highlight")
+async def api_highlight(code: str, body: dict):
+    """Highlight a section and optionally add a comment."""
+    room = get_room_by_code(code)
+    if not room:
+        raise HTTPException(404, "Room not found")
 
-@sio.event
-async def connect(sid, environ):
-    logger.info(f"Client connected: {sid}")
-
-
-@sio.event
-async def disconnect(sid):
-    logger.info(f"Client disconnected: {sid}")
-
-
-@sio.event
-async def highlight_section(sid, data):
-    section_id = data.get("section_id")
-    comment = data.get("comment")
-
+    section_id = body.get("section_id")
+    comment = body.get("comment")
     if not section_id:
-        return
+        raise HTTPException(400, "section_id is required")
 
-    count = await increment_highlight(section_id)
+    count = increment_highlight(room["id"], section_id)
 
     if comment:
-        await add_comment(section_id, comment)
+        add_comment(room["id"], section_id, comment)
 
-    await sio.emit("highlight_update", {
-        "section_id": section_id,
-        "highlight_count": count,
-        "comment": comment,
-    })
-
-
-# Combine FastAPI + Socket.IO into a single ASGI app
-asgi_app = socketio.ASGIApp(sio, app)
+    return {"section_id": section_id, "highlight_count": count}
