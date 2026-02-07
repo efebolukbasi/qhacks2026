@@ -17,7 +17,7 @@ from supabase_client import (
     get_room_by_code,
     upsert_notes,
     get_notes_for_room,
-    get_existing_section_ids,
+    get_existing_sections_summary,
     increment_highlight,
     add_comment,
     get_comments_for_room,
@@ -94,11 +94,11 @@ async def upload_image(code: str, file: UploadFile = File(...)):
     # previous one (prevents duplicate diagrams / section IDs).
     lock = _get_room_lock(room["id"])
     async with lock:
-        existing_ids = get_existing_section_ids(room["id"])
+        existing_sections = get_existing_sections_summary(room["id"])
 
         try:
             sections = await asyncio.to_thread(
-                send_image_to_gemini, tmp_path, True, existing_ids
+                send_image_to_gemini, tmp_path, True, existing_sections
             )
         except Exception as e:
             logger.error(f"Gemini API error: {e}")
