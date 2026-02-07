@@ -48,6 +48,7 @@ export default function ProfessorRoomPage() {
   const [processing, setProcessing] = useState(false);
   const [captureCount, setCaptureCount] = useState(0);
   const [expandedEngagement, setExpandedEngagement] = useState<string | null>(null);
+  const [studentCount, setStudentCount] = useState(0);
 
   // Load room
   useEffect(() => {
@@ -128,6 +129,29 @@ export default function ProfessorRoomPage() {
       sb.removeChannel(channel);
     };
   }, [room, fetchData]);
+
+  // Presence: track connected students
+  useEffect(() => {
+    if (!room) return;
+
+    const sb = getSupabase();
+    const presenceChannel = sb.channel(`presence-${room.id}`);
+
+    presenceChannel
+      .on("presence", { event: "sync" }, () => {
+        const state = presenceChannel.presenceState();
+        const count = Object.keys(state).reduce(
+          (sum, key) => sum + (state[key] as unknown[]).length,
+          0
+        );
+        setStudentCount(count);
+      })
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(presenceChannel);
+    };
+  }, [room]);
 
   // ---------------------------------------------------------------------------
   // Camera controls
@@ -249,6 +273,17 @@ export default function ProfessorRoomPage() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <div className="rounded-lg border border-rule bg-bg-surface px-4 py-2 text-center">
+            <p className="font-mono text-[9px] uppercase tracking-widest text-on-dark-dim">
+              Students Connected
+            </p>
+            <p className="mt-0.5 flex items-center justify-center gap-2 font-mono text-xl font-bold text-cream">
+              <span className={`inline-block h-2 w-2 rounded-full ${
+                studentCount > 0 ? "bg-copper animate-pulse" : "bg-on-dark-dim/30"
+              }`} />
+              {studentCount}
+            </p>
+          </div>
           <div className="rounded-lg border border-rule bg-bg-surface px-4 py-2 text-center">
             <p className="font-mono text-[9px] uppercase tracking-widest text-on-dark-dim">
               Room Code

@@ -45,6 +45,7 @@ export default function StudentRoomPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [sending, setSending] = useState(false);
+  const [flagging, setFlagging] = useState(false);
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const prevNoteIdsRef = useRef<Set<string>>(new Set());
@@ -155,8 +156,20 @@ export default function StudentRoomPage() {
       )
       .subscribe();
 
+    // Track student presence so professors can see the count
+    const presenceChannel = sb.channel(`presence-${room.id}`);
+    presenceChannel
+      .on("presence", { event: "sync" }, () => {})
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await presenceChannel.track({ joined_at: new Date().toISOString() });
+        }
+      });
+
     return () => {
       sb.removeChannel(channel);
+      presenceChannel.untrack();
+      sb.removeChannel(presenceChannel);
     };
   }, [room, fetchNotes]);
 
@@ -225,24 +238,29 @@ export default function StudentRoomPage() {
   }, []);
 
   const handleSubmitComment = async () => {
-    if (!selection) return;
+    if (!selection || flagging) return;
     setSending(true);
+    setFlagging(true);
 
-    await fetch(`${BACKEND_URL}/rooms/${code}/highlight`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        section_id: selection.sectionId,
-        highlighted_text: selection.text,
-        comment: commentText.trim() || undefined,
-      }),
-    });
+    try {
+      await fetch(`${BACKEND_URL}/rooms/${code}/highlight`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section_id: selection.sectionId,
+          highlighted_text: selection.text,
+          comment: commentText.trim() || undefined,
+        }),
+      });
 
-    setCommentText("");
-    setSelection(null);
-    setSending(false);
-    window.getSelection()?.removeAllRanges();
-    fetchNotes();
+      setCommentText("");
+      setSelection(null);
+      window.getSelection()?.removeAllRanges();
+      fetchNotes();
+    } finally {
+      setSending(false);
+      setFlagging(false);
+    }
   };
 
   if (!room) {
@@ -463,10 +481,10 @@ export default function StudentRoomPage() {
                     />
                     <button
                       onClick={handleSubmitComment}
-                      disabled={sending}
+                      disabled={sending || flagging}
                       className="rounded bg-cinnabar px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-cream transition-colors hover:bg-cinnabar/90 disabled:opacity-40"
                     >
-                      {commentText.trim() ? "Send" : "Flag"}
+                      {flagging ? "…" : commentText.trim() ? "Send" : "Flag"}
                     </button>
                   </div>
                 </div>
