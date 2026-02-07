@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase, BACKEND_URL } from "@/lib/supabase";
+import { getSupabase, BACKEND_URL } from "@/lib/supabase";
 import LatexContent from "@/components/LatexContent";
 
 interface Room {
@@ -68,13 +68,14 @@ export default function ProfessorRoomPage() {
   const fetchData = useCallback(async () => {
     if (!room) return;
 
+    const sb = getSupabase();
     const [notesRes, commentsRes] = await Promise.all([
-      supabase
+      sb
         .from("lecture_notes")
         .select("*, highlights(highlight_count)")
         .eq("room_id", room.id)
         .order("id"),
-      supabase
+      sb
         .from("comments")
         .select("*")
         .eq("room_id", room.id)
@@ -110,7 +111,8 @@ export default function ProfessorRoomPage() {
   useEffect(() => {
     if (!room) return;
 
-    const channel = supabase
+    const sb = getSupabase();
+    const channel = sb
       .channel(`prof-${room.id}`)
       .on(
         "postgres_changes",
@@ -130,7 +132,7 @@ export default function ProfessorRoomPage() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      sb.removeChannel(channel);
     };
   }, [room, fetchData]);
 
