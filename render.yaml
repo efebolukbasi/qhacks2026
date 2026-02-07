@@ -3,30 +3,16 @@ services:
   - type: web
     name: chalkboard-backend
     runtime: python
+    plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: OPENROUTER_API_KEY
-        sync: false
-      - key: OPENROUTER_MODEL
-        sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_KEY
-        sync: false
 
   # Next.js frontend
   - type: web
     name: chalkboard-frontend
     runtime: node
+    plan: free
     rootDir: frontend
     buildCommand: pnpm install && pnpm build
     startCommand: node .next/standalone/server.js
-    envVars:
-      - key: NEXT_PUBLIC_SUPABASE_URL
-        sync: false
-      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
-        sync: false
-      - key: NEXT_PUBLIC_BACKEND_URL
-        sync: false
