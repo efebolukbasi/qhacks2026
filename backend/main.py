@@ -163,7 +163,7 @@ async def text_to_speech(body: dict):
     API key is kept secure on the backend.
     """
     text = body.get("text")
-    voice_id = body.get("voice_id", "9BWtsMINqrJLrRacOk9x")  # default voice
+    voice_id = body.get("voice_id", "onwK4e9ZLuTAKqWW03F9")  # default voice
     
     if not text:
         raise HTTPException(400, "text is required")

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { getSupabase, BACKEND_URL } from "@/lib/supabase";
 import LatexContent from "@/components/LatexContent";
+import VoiceButton from "@/components/VoiceButton";
 
 interface NoteSection {
   section_id: string;
@@ -277,6 +278,12 @@ export default function StudentRoomPage() {
                       </div>
                     ) : (
                       <div className="my-1">
+
+                                            {note.type !== "diagram" && (
+                                              <div className="mt-2 mb-2">
+                                                <VoiceButton text={note.content} />
+                                              </div>
+                                            )}
                         <LatexContent text={note.content} />
                       </div>
                     )}
