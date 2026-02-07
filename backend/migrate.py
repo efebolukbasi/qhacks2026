@@ -26,11 +26,26 @@ with conn.cursor() as cur:
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             code TEXT UNIQUE NOT NULL,
             name TEXT,
+            professor_key TEXT,
             is_active BOOLEAN DEFAULT true,
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
     """)
     print("  ✓ rooms")
+
+    # --- Migration: add professor_key column if missing ---
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'rooms' AND column_name = 'professor_key'
+            ) THEN
+                ALTER TABLE rooms ADD COLUMN professor_key TEXT;
+            END IF;
+        END $$;
+    """)
+    print("  ✓ rooms.professor_key column")
 
     # --- Lecture Notes (room-scoped) ---
     cur.execute("""

@@ -50,7 +50,13 @@ export default function ProfessorRoomPage() {
   const [expandedEngagement, setExpandedEngagement] = useState<string | null>(null);
   const [studentCount, setStudentCount] = useState(0);
 
-  // Load room
+  // Auth state
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [keyInput, setKeyInput] = useState("");
+  const [authError, setAuthError] = useState("");
+
+  // Load room + verify professor key
   useEffect(() => {
     async function load() {
       try {
@@ -60,8 +66,26 @@ export default function ProfessorRoomPage() {
           return;
         }
         setRoom(await res.json());
+
+        // Check if we already have the key in sessionStorage
+        const storedKey = sessionStorage.getItem(`prof_key_${code}`);
+        if (storedKey) {
+          const verifyRes = await fetch(
+            `${BACKEND_URL}/rooms/${code}/verify-professor`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key: storedKey }),
+            }
+          );
+          if (verifyRes.ok) {
+            setAuthenticated(true);
+          }
+        }
       } catch {
         router.push("/professor");
+      } finally {
+        setAuthChecking(false);
       }
     }
     load();
@@ -254,6 +278,83 @@ export default function ProfessorRoomPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-on-dark-dim">
         Loading room...
+      </div>
+    );
+  }
+
+  // Auth gate: prompt for professor key
+  if (!authenticated) {
+    const handleVerify = async () => {
+      setAuthError("");
+      try {
+        const res = await fetch(
+          `${BACKEND_URL}/rooms/${code}/verify-professor`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: keyInput.trim() }),
+          }
+        );
+        if (!res.ok) {
+          setAuthError("Invalid professor key");
+          return;
+        }
+        sessionStorage.setItem(`prof_key_${code}`, keyInput.trim());
+        setAuthenticated(true);
+      } catch {
+        setAuthError("Could not verify key. Is the backend running?");
+      }
+    };
+
+    if (authChecking) {
+      return (
+        <div className="flex min-h-[60vh] items-center justify-center text-on-dark-dim">
+          Verifying access...
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center">
+        <div className="w-full max-w-sm text-center">
+          <div className="mb-2 text-3xl">🔒</div>
+          <h1 className="font-display text-2xl italic text-cream">
+            Professor Access
+          </h1>
+          <p className="mt-2 text-sm text-on-dark-dim">
+            Enter the secret key you received when creating room{" "}
+            <span className="font-mono font-bold text-lamplight">{code}</span>
+          </p>
+
+          <input
+            type="password"
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+            placeholder="Professor key"
+            className="mt-6 w-full rounded-lg border border-rule bg-bg-surface px-4 py-3 font-mono text-sm text-cream placeholder:text-on-dark-dim/30 outline-none transition-colors focus:border-copper/50"
+            autoFocus
+          />
+
+          {authError && (
+            <p className="mt-3 text-xs text-cinnabar">{authError}</p>
+          )}
+
+          <button
+            onClick={handleVerify}
+            disabled={!keyInput.trim()}
+            className="mt-4 w-full rounded-lg bg-copper px-4 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-cream transition-colors hover:bg-copper/90 disabled:opacity-40"
+          >
+            Unlock Dashboard
+          </button>
+
+          <button
+            onClick={() => router.push("/professor")}
+            className="mt-4 font-mono text-xs text-on-dark-dim hover:text-cream transition-colors"
+          >
+            ← Create a new room instead
+          </button>
+        </div>
       </div>
     );
   }

@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from supabase_client import (
     create_room,
     get_room_by_code,
+    verify_professor_key,
     upsert_notes,
     get_notes_for_room,
     get_existing_sections_summary,
@@ -68,7 +69,20 @@ async def api_get_room(code: str):
     room = get_room_by_code(code)
     if not room:
         raise HTTPException(404, "Room not found or inactive")
-    return room
+    # Never expose professor_key to GET requests
+    room_safe = {k: v for k, v in room.items() if k != "professor_key"}
+    return room_safe
+
+
+@app.post("/rooms/{code}/verify-professor")
+async def api_verify_professor(code: str, body: dict):
+    """Verify the professor secret key for a room."""
+    key = body.get("key", "")
+    if not key:
+        raise HTTPException(400, "key is required")
+    if not verify_professor_key(code, key):
+        raise HTTPException(403, "Invalid professor key")
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------

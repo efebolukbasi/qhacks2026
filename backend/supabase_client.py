@@ -2,6 +2,7 @@
 
 import os
 import random
+import secrets
 import string
 import logging
 
@@ -34,10 +35,11 @@ def _generate_code(length: int = 6) -> str:
 
 
 def create_room(name: str | None = None) -> dict:
-    """Create a new room and return it."""
+    """Create a new room and return it (including the professor_key)."""
     sb = get_client()
     code = _generate_code()
-    row = {"code": code}
+    professor_key = secrets.token_urlsafe(16)
+    row = {"code": code, "professor_key": professor_key}
     if name:
         row["name"] = name
     result = sb.table("rooms").insert(row).execute()
@@ -49,6 +51,21 @@ def get_room_by_code(code: str) -> dict | None:
     sb = get_client()
     result = sb.table("rooms").select("*").eq("code", code.upper()).eq("is_active", True).execute()
     return result.data[0] if result.data else None
+
+
+def verify_professor_key(code: str, key: str) -> bool:
+    """Check whether the provided key matches the room's professor_key."""
+    sb = get_client()
+    result = (
+        sb.table("rooms")
+        .select("professor_key")
+        .eq("code", code.upper())
+        .eq("is_active", True)
+        .execute()
+    )
+    if not result.data:
+        return False
+    return result.data[0].get("professor_key") == key
 
 
 # ---------------------------------------------------------------------------
