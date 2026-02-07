@@ -38,6 +38,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Per-room locks to serialise image uploads and prevent duplicate sections
+_room_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_room_lock(room_id: str) -> asyncio.Lock:
+    """Return (or create) an asyncio.Lock for the given room."""
+    if room_id not in _room_locks:
+        _room_locks[room_id] = asyncio.Lock()
+    return _room_locks[room_id]
+
 
 # ---------------------------------------------------------------------------
 # Room endpoints
@@ -79,35 +89,40 @@ async def upload_image(code: str, file: UploadFile = File(...)):
         tmp.write(contents)
         tmp_path = tmp.name
 
-    existing_ids = get_existing_section_ids(room["id"])
+    # Acquire per-room lock so concurrent uploads are processed one at a
+    # time, ensuring each request sees the section IDs written by the
+    # previous one (prevents duplicate diagrams / section IDs).
+    lock = _get_room_lock(room["id"])
+    async with lock:
+        existing_ids = get_existing_section_ids(room["id"])
 
-    try:
-        sections = await asyncio.to_thread(
-            send_image_to_gemini, tmp_path, True, existing_ids
-        )
-    except Exception as e:
-        logger.error(f"Gemini API error: {e}")
-        raise HTTPException(502, f"Failed to process image: {e}")
-    finally:
-        # Clean up temp file
-        Path(tmp_path).unlink(missing_ok=True)
+        try:
+            sections = await asyncio.to_thread(
+                send_image_to_gemini, tmp_path, True, existing_ids
+            )
+        except Exception as e:
+            logger.error(f"Gemini API error: {e}")
+            raise HTTPException(502, f"Failed to process image: {e}")
+        finally:
+            # Clean up temp file
+            Path(tmp_path).unlink(missing_ok=True)
 
-    # Upload any generated diagram images to Supabase Storage
-    for section in sections:
-        img_bytes = section.pop("_image_bytes", None)
-        img_ext = section.pop("_image_ext", None)
-        if img_bytes and img_ext:
-            mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(img_ext, "image/png")
-            filename = f"diagram_{uuid.uuid4()}.{img_ext}"
-            try:
-                public_url = upload_diagram(filename, img_bytes, mime)
-                section["image_url"] = public_url
-            except Exception as e:
-                logger.error(f"Failed to upload diagram to storage: {e}")
+        # Upload any generated diagram images to Supabase Storage
+        for section in sections:
+            img_bytes = section.pop("_image_bytes", None)
+            img_ext = section.pop("_image_ext", None)
+            if img_bytes and img_ext:
+                mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(img_ext, "image/png")
+                filename = f"diagram_{uuid.uuid4()}.{img_ext}"
+                try:
+                    public_url = upload_diagram(filename, img_bytes, mime)
+                    section["image_url"] = public_url
+                except Exception as e:
+                    logger.error(f"Failed to upload diagram to storage: {e}")
 
-    # Write results to Supabase — Realtime will push updates to clients
-    upsert_notes(room["id"], sections)
-    notes = get_notes_for_room(room["id"])
+        # Write results to Supabase — Realtime will push updates to clients
+        upsert_notes(room["id"], sections)
+        notes = get_notes_for_room(room["id"])
 
     return {"sections": sections, "notes": notes}
 
