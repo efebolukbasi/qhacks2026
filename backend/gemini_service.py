@@ -347,16 +347,26 @@ def send_image_to_gemini(
     logger.info(f"AI response (fixed): {text[:500]}")
     sections = json.loads(text)
     
-    # Generate actual images for diagram sections
+    # Generate actual images for NEW diagram sections only.
+    # Reused sections that already have an image are skipped.
+    sections_with_images = {
+        s["section_id"]
+        for s in (existing_sections or [])
+        if s.get("image_url")
+    }
+
     if generate_diagrams:
         for section in sections:
-            if section.get("type") == "diagram":
+            sid = section.get("section_id")
+            if section.get("type") == "diagram" and sid not in sections_with_images:
                 result = generate_diagram_image(image_path)
                 if result:
                     img_bytes, img_ext = result
                     # Attach raw bytes so the caller can upload to storage
                     section["_image_bytes"] = img_bytes
                     section["_image_ext"] = img_ext
-                    logger.info(f"Generated diagram for section {section.get('section_id')}")
+                    logger.info(f"Generated diagram for section {sid}")
+            elif sid in sections_with_images:
+                logger.info(f"Skipping image generation for reused section {sid}")
     
     return sections

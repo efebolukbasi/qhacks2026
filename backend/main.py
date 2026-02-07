@@ -107,11 +107,25 @@ async def upload_image(code: str, file: UploadFile = File(...)):
             # Clean up temp file
             Path(tmp_path).unlink(missing_ok=True)
 
-        # Upload any generated diagram images to Supabase Storage
+        # Build a lookup of existing sections that already have images
+        existing_images = {
+            s["section_id"]: s["image_url"]
+            for s in existing_sections
+            if s.get("image_url")
+        }
+
+        # Upload any generated diagram images to Supabase Storage,
+        # but skip sections that already have an image (reused diagrams).
         for section in sections:
             img_bytes = section.pop("_image_bytes", None)
             img_ext = section.pop("_image_ext", None)
-            if img_bytes and img_ext:
+
+            existing_url = existing_images.get(section.get("section_id"))
+            if existing_url:
+                # Reused section already has a diagram — keep it
+                section["image_url"] = existing_url
+                logger.info(f"Keeping existing image for reused section {section.get('section_id')}")
+            elif img_bytes and img_ext:
                 mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(img_ext, "image/png")
                 filename = f"diagram_{uuid.uuid4()}.{img_ext}"
                 try:

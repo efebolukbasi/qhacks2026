@@ -86,11 +86,11 @@ def get_existing_section_ids(room_id: str) -> list[str]:
 
 
 def get_existing_sections_summary(room_id: str) -> list[dict]:
-    """Return section_id, type, and a content snippet for each existing section."""
+    """Return section_id, type, content snippet, and image_url for each existing section."""
     sb = get_client()
     result = (
         sb.table("lecture_notes")
-        .select("section_id, type, content")
+        .select("section_id, type, content, image_url")
         .eq("room_id", room_id)
         .order("id")
         .execute()
@@ -100,6 +100,7 @@ def get_existing_sections_summary(room_id: str) -> list[dict]:
             "section_id": row["section_id"],
             "type": row["type"],
             "content_preview": (row.get("content") or "")[:150],
+            "image_url": row.get("image_url"),
         }
         for row in result.data
     ]
