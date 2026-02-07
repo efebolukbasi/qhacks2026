@@ -1,0 +1,459 @@
+"use client";
+
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { supabase, BACKEND_URL } from "@/lib/supabase";
+import LatexContent from "@/components/LatexContent";
+
+interface Room {
+  id: string;
+  code: string;
+  name: string | null;
+}
+
+interface NoteSection {
+  section_id: string;
+  type: string;
+  content: string;
+  caption?: string;
+  highlight_count: number;
+}
+
+interface Comment {
+  id: number;
+  section_id: string;
+  comment: string;
+  created_at: string;
+}
+
+export default function ProfessorRoomPage() {
+  const params = useParams();
+  const router = useRouter();
+  const code = (params.code as string).toUpperCase();
+
+  const [room, setRoom] = useState<Room | null>(null);
+  const [notes, setNotes] = useState<NoteSection[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+
+  // Webcam state
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [capturing, setCapturing] = useState(false);
+  const [captureInterval, setCaptureInterval] = useState(30);
+  const [lastCapture, setLastCapture] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [captureCount, setCaptureCount] = useState(0);
+
+  // Load room
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/rooms/${code}`);
+        if (!res.ok) {
+          router.push("/professor");
+          return;
+        }
+        setRoom(await res.json());
+      } catch {
+        router.push("/professor");
+      }
+    }
+    load();
+  }, [code, router]);
+
+  // Fetch notes and comments
+  const fetchData = useCallback(async () => {
+    if (!room) return;
+
+    const [notesRes, commentsRes] = await Promise.all([
+      supabase
+        .from("lecture_notes")
+        .select("*, highlights(highlight_count)")
+        .eq("room_id", room.id)
+        .order("id"),
+      supabase
+        .from("comments")
+        .select("*")
+        .eq("room_id", room.id)
+        .order("created_at"),
+    ]);
+
+    if (notesRes.data) {
+      setNotes(
+        notesRes.data.map((row: Record<string, unknown>) => {
+          const hl = row.highlights as Record<string, unknown>[] | null;
+          let count = 0;
+          if (Array.isArray(hl) && hl.length > 0) count = (hl[0].highlight_count as number) || 0;
+          return {
+            section_id: row.section_id as string,
+            type: row.type as string,
+            content: row.content as string,
+            caption: row.caption as string | undefined,
+            highlight_count: count,
+          };
+        })
+      );
+    }
+    if (commentsRes.data) {
+      setComments(commentsRes.data as Comment[]);
+    }
+  }, [room]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Realtime subscriptions
+  useEffect(() => {
+    if (!room) return;
+
+    const channel = supabase
+      .channel(`prof-${room.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "lecture_notes", filter: `room_id=eq.${room.id}` },
+        () => fetchData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "highlights", filter: `room_id=eq.${room.id}` },
+        () => fetchData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "comments", filter: `room_id=eq.${room.id}` },
+        () => fetchData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [room, fetchData]);
+
+  // ---------------------------------------------------------------------------
+  // Camera controls
+  // ---------------------------------------------------------------------------
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setCameraActive(true);
+    } catch (err) {
+      alert("Could not access camera. Please allow camera permissions.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setCameraActive(false);
+    setCapturing(false);
+  };
+
+  const captureFrame = useCallback(async () => {
+    if (!videoRef.current || !canvasRef.current || !room) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+
+    // Convert to JPEG blob
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.85)
+    );
+    if (!blob) return;
+
+    setProcessing(true);
+    setLastCapture(new Date().toLocaleTimeString());
+
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, `capture_${Date.now()}.jpg`);
+
+      await fetch(`${BACKEND_URL}/rooms/${code}/upload-image`, {
+        method: "POST",
+        body: formData,
+      });
+
+      setCaptureCount((c) => c + 1);
+    } catch (err) {
+      console.error("Capture upload failed:", err);
+    } finally {
+      setProcessing(false);
+    }
+  }, [room, code]);
+
+  const startCapturing = () => {
+    setCapturing(true);
+    captureFrame(); // Capture immediately
+    intervalRef.current = setInterval(captureFrame, captureInterval * 1000);
+  };
+
+  const stopCapturing = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setCapturing(false);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  // Sort notes by highlight count for the dashboard
+  const sortedByHighlights = [...notes].sort(
+    (a, b) => b.highlight_count - a.highlight_count
+  );
+  const noteMap = new Map(notes.map((n) => [n.section_id, n]));
+
+  if (!room) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-on-dark-dim">
+        Loading room...
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-4xl">
+      {/* Room header */}
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-on-dark-dim">
+            Professor Dashboard
+          </p>
+          {room.name && (
+            <h1 className="mt-1 font-display text-2xl italic text-cream">
+              {room.name}
+            </h1>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg border border-rule bg-bg-surface px-4 py-2 text-center">
+            <p className="font-mono text-[9px] uppercase tracking-widest text-on-dark-dim">
+              Room Code
+            </p>
+            <p className="mt-0.5 font-mono text-xl font-bold tracking-[0.2em] text-lamplight">
+              {room.code}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Left column: Camera */}
+        <section>
+          <h2 className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-on-dark-dim">
+            Camera Capture
+          </h2>
+          <div className="rounded-lg border border-rule bg-bg-surface overflow-hidden">
+            {/* Video preview */}
+            <div className="relative aspect-video bg-black">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`h-full w-full object-cover ${!cameraActive ? "hidden" : ""}`}
+              />
+              {!cameraActive && (
+                <div className="flex h-full items-center justify-center">
+                  <button
+                    onClick={startCamera}
+                    className="rounded-lg bg-bg-raised px-6 py-3 font-mono text-xs font-medium text-on-dark transition-colors hover:bg-rule/20"
+                  >
+                    Start Camera
+                  </button>
+                </div>
+              )}
+              {processing && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                  <p className="font-mono text-xs text-cream animate-pulse">
+                    Processing...
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Camera controls */}
+            {cameraActive && (
+              <div className="border-t border-rule p-3">
+                <div className="flex items-center gap-2">
+                  {!capturing ? (
+                    <button
+                      onClick={startCapturing}
+                      className="flex-1 rounded bg-cinnabar py-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-cream hover:bg-cinnabar/90"
+                    >
+                      Start Capturing
+                    </button>
+                  ) : (
+                    <button
+                      onClick={stopCapturing}
+                      className="flex-1 rounded border border-cinnabar/50 bg-cinnabar/10 py-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-cinnabar hover:bg-cinnabar/20"
+                    >
+                      Stop Capturing
+                    </button>
+                  )}
+                  <button
+                    onClick={captureFrame}
+                    disabled={processing}
+                    className="rounded border border-rule bg-bg-raised px-3 py-2 font-mono text-[10px] text-on-dark hover:bg-rule/20 disabled:opacity-40"
+                    title="Capture one frame now"
+                  >
+                    Snap
+                  </button>
+                  <button
+                    onClick={stopCamera}
+                    className="rounded border border-rule bg-bg-raised px-3 py-2 font-mono text-[10px] text-on-dark-dim hover:text-cinnabar"
+                    title="Stop camera"
+                  >
+                    Off
+                  </button>
+                </div>
+
+                {/* Interval selector */}
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="font-mono text-[9px] text-on-dark-dim">
+                    Interval:
+                  </label>
+                  <select
+                    value={captureInterval}
+                    onChange={(e) => setCaptureInterval(Number(e.target.value))}
+                    disabled={capturing}
+                    className="rounded border border-rule bg-bg-raised px-2 py-1 font-mono text-[10px] text-on-dark outline-none"
+                  >
+                    <option value={10}>10s</option>
+                    <option value={15}>15s</option>
+                    <option value={30}>30s</option>
+                    <option value={60}>60s</option>
+                  </select>
+                  {lastCapture && (
+                    <span className="ml-auto font-mono text-[9px] text-on-dark-dim">
+                      Last: {lastCapture} ({captureCount} total)
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <canvas ref={canvasRef} className="hidden" />
+        </section>
+
+        {/* Right column: Engagement dashboard */}
+        <section>
+          {/* Most Highlighted */}
+          <h2 className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-on-dark-dim">
+            Student Engagement
+          </h2>
+          <div className="rounded-lg border border-rule bg-bg-surface p-4">
+            {sortedByHighlights.length === 0 ? (
+              <p className="text-center text-xs text-on-dark-dim/50 py-6">
+                No notes yet
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {sortedByHighlights.slice(0, 8).map((note, i) => {
+                  const maxCount = sortedByHighlights[0]?.highlight_count || 1;
+                  const barWidth = maxCount > 0 ? (note.highlight_count / maxCount) * 100 : 0;
+                  return (
+                    <div
+                      key={note.section_id}
+                      className="relative flex items-center gap-2 rounded p-2"
+                    >
+                      {/* Background bar */}
+                      <div
+                        className="bar-animate absolute inset-0 rounded bg-cinnabar/8"
+                        style={{ width: `${barWidth}%` }}
+                      />
+                      <span className="relative z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bg-raised font-mono text-[9px] font-bold text-on-dark-dim">
+                        {i + 1}
+                      </span>
+                      <div className="relative z-10 flex-1 min-w-0">
+                        <div className="latex-truncate text-xs text-on-dark">
+                          <LatexContent
+                            text={
+                              note.content.length > 80
+                                ? note.content.slice(0, 80) + "..."
+                                : note.content
+                            }
+                          />
+                        </div>
+                      </div>
+                      <span
+                        className={`relative z-10 flex h-6 min-w-6 items-center justify-center rounded-full font-mono text-[10px] font-bold ${
+                          note.highlight_count > 0
+                            ? "bg-cinnabar text-cream"
+                            : "bg-bg-raised text-on-dark-dim"
+                        }`}
+                      >
+                        {note.highlight_count}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Questions */}
+          <h2 className="mb-3 mt-6 font-mono text-[10px] font-semibold uppercase tracking-widest text-on-dark-dim">
+            Student Questions
+          </h2>
+          <div className="rounded-lg border border-rule bg-bg-surface p-4">
+            {comments.length === 0 ? (
+              <p className="text-center text-xs text-on-dark-dim/50 py-6">
+                No questions yet
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3 max-h-80 overflow-y-auto">
+                {comments.map((c) => {
+                  const related = noteMap.get(c.section_id);
+                  return (
+                    <div key={c.id} className="border-b border-rule pb-3 last:border-0">
+                      <p className="text-sm text-cream">
+                        &ldquo;{c.comment}&rdquo;
+                      </p>
+                      {related && (
+                        <p className="mt-1 font-mono text-[9px] text-on-dark-dim">
+                          re: {related.content.slice(0, 60)}...
+                        </p>
+                      )}
+                      <p className="mt-0.5 font-mono text-[8px] text-on-dark-dim/40">
+                        {new Date(c.created_at).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}

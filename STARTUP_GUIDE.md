@@ -1,133 +1,117 @@
 # QHacks 2026 Chalkboard Notes - Startup Guide
 
-Quick guide to start the application for the first time.
-
 ## Prerequisites
 
-- Docker and Docker Compose
 - Python 3.12+
 - pnpm (Node.js package manager)
 - OpenRouter API key
+- A Supabase project (free tier works)
 
 ## First-Time Setup
 
-### 1. Start PostgreSQL Database
+### 1. Set Up Supabase
 
-```bash
-docker compose up -d
-```
-
-This starts PostgreSQL on port 5432.
+1. Go to [supabase.com](https://supabase.com) and create a project.
+2. From your dashboard, collect these values:
+   - **Project URL**: `https://[ref].supabase.co` (Settings > API)
+   - **Anon key**: public key (Settings > API)
+   - **Service role key**: secret key (Settings > API)
+   - **Database URI**: Transaction pooler URI (Settings > Database > Connection string)
 
 ### 2. Configure Backend
 
-The `.env` file has been created in `backend/` with default values. **You must add your OpenRouter API key:**
-
 ```bash
 cd backend
-# Edit .env and replace 'your-openrouter-api-key-here' with your actual API key
+cp .env.example .env
 nano .env
 ```
 
-Your `.env` should look like:
+Fill in your `.env`:
 ```
 OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxx
 OPENROUTER_MODEL=google/gemini-2.0-flash-001
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/chalkboard
+SUPABASE_URL=https://your-ref.supabase.co
+SUPABASE_KEY=your-service-role-key
+DATABASE_URL=postgresql://postgres.your-ref:password@aws-0-region.pooler.supabase.com:6543/postgres
 ```
 
-### 3. Install Backend Dependencies
+### 3. Configure Frontend
+
+```bash
+cd frontend
+cp .env.local.example .env.local
+nano .env.local
+```
+
+Fill in:
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+```
+
+### 4. Install Dependencies
+
+```bash
+cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd ../frontend && pnpm install
+```
+
+### 5. Run Database Migration
 
 ```bash
 cd backend
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+.venv/bin/python migrate.py
 ```
 
-### 4. Install Frontend Dependencies
-
-```bash
-cd ../frontend
-pnpm install
-```
+This creates the tables and enables Realtime. Only needs to run once.
 
 ## Starting the Application
 
-### Start Backend Server
+### Start Backend
 
 ```bash
 cd backend
-.venv/bin/uvicorn main:asgi_app --host 0.0.0.0 --port 8000
+.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Backend will run on: http://localhost:8000
-
-### Start Frontend Dev Server (in a new terminal)
+### Start Frontend (new terminal)
 
 ```bash
 cd frontend
 pnpm dev
 ```
 
-Frontend will run on: http://localhost:3000
+## How It Works
 
-## Accessing the Application
+1. **Professor** opens the app and creates a room — gets a 6-character code
+2. **Students** enter the code on the home page to join the lecture
+3. **Professor** starts their webcam — frames are captured at an interval and sent to the AI
+4. **Students** see the notes appear in real time (via Supabase Realtime)
+5. **Students** can highlight sections or ask questions
+6. **Professor** sees engagement metrics and student questions on their dashboard
 
-- **Student View**: http://localhost:3000
-- **Professor Dashboard**: http://localhost:3000/professor
-- **Backend API**: http://localhost:8000/docs (FastAPI Swagger UI)
+## URLs
 
-## Testing the Image Capture
+- **Home / Join Room**: http://localhost:3000
+- **Create Room**: http://localhost:3000/professor
+- **Student View**: http://localhost:3000/room/[CODE]
+- **Professor Dashboard**: http://localhost:3000/professor/[CODE]
+- **Backend API**: http://localhost:8000/docs
 
-To test with a sample image:
-
-```bash
-cd capture
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python create_test_image.py
-```
-
-Or configure `capture/config.json` with your IP camera URL and run:
+## Utility Scripts
 
 ```bash
-.venv/bin/python capture.py
+# Reset all data (keeps tables)
+.venv/bin/python clear_db.py
+
+# Re-run migration (safe to repeat)
+.venv/bin/python migrate.py
 ```
-
-## Features
-
-- **Real-time Notes**: Chalkboard images are processed automatically
-- **LaTeX Support**: Mathematical equations are rendered beautifully
-- **Diagram Generation**: AI generates actual images for diagrams using Google's Nano Banana (Gemini 3 Pro Image Preview)
-- **Student Interaction**: Students can highlight sections and ask questions
-- **Professor Dashboard**: See what students find confusing in real-time
 
 ## Troubleshooting
 
-### Database Connection Issues
-- Ensure PostgreSQL container is running: `docker compose ps`
-- Check logs: `docker compose logs postgres`
-
-### Backend Issues
-- Verify `.env` file has valid OPENROUTER_API_KEY
-- Check backend logs for errors
-- Database will auto-initialize on first run
-
-### Frontend Issues
-- Clear browser cache
-- Check console for WebSocket connection errors
-- Ensure backend is running on port 8000
-
-### Image Generation Not Working
-- Verify you have a valid OpenRouter API key with credits
-- Check backend logs for "Image generation response" messages
-- The model `google/gemini-3-pro-image-preview` requires the `modalities` parameter
-
-## Stopping the Application
-
-- Press `Ctrl+C` in each terminal running the servers
-- Stop PostgreSQL: `docker compose down`
-
-## Next Steps
-
-See `DIAGRAM_IMAGE_GENERATION.md` for details on the AI-powered diagram generation feature.
+- **"Room not found"**: Check the code is correct and the room is active
+- **Camera not working**: Ensure you've granted camera permissions in your browser
+- **Notes not updating**: Check that Realtime is enabled on your Supabase tables (the migration does this)
+- **Backend errors**: Check that SUPABASE_URL and SUPABASE_KEY are set correctly
