@@ -72,6 +72,19 @@ def upsert_notes(room_id: str, sections: list[dict]) -> None:
     sb.table("lecture_notes").upsert(rows, on_conflict="room_id,section_id").execute()
 
 
+def get_existing_section_ids(room_id: str) -> list[str]:
+    """Return all section_ids that already exist for a room."""
+    sb = get_client()
+    result = (
+        sb.table("lecture_notes")
+        .select("section_id")
+        .eq("room_id", room_id)
+        .order("id")
+        .execute()
+    )
+    return [row["section_id"] for row in result.data]
+
+
 def get_notes_for_room(room_id: str) -> list[dict]:
     """Get all notes for a room with highlight counts."""
     sb = get_client()

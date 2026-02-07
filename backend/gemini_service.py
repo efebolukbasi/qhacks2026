@@ -233,12 +233,54 @@ def generate_diagram_image(chalkboard_image_path: str) -> tuple[bytes, str] | No
         return None
 
 
-def send_image_to_gemini(image_path: str, generate_diagrams: bool = True) -> list[dict]:
+def _build_prompt(existing_section_ids: list[str] | None = None) -> str:
+    """Build the full prompt, injecting existing section IDs when available."""
+    if not existing_section_ids:
+        return PROMPT
+
+    ids_list = ", ".join(existing_section_ids)
+    # Find the highest block/diag numbers so the AI knows where to continue
+    max_block = 0
+    max_diag = 0
+    for sid in existing_section_ids:
+        if sid.startswith("block-"):
+            try:
+                max_block = max(max_block, int(sid.split("-", 1)[1]))
+            except ValueError:
+                pass
+        elif sid.startswith("diag-"):
+            try:
+                max_diag = max(max_diag, int(sid.split("-", 1)[1]))
+            except ValueError:
+                pass
+
+    context = (
+        f"\n\nIMPORTANT — EXISTING NOTES CONTEXT:\n"
+        f"The following section_ids already exist for this lecture: [{ids_list}]\n"
+        f"- If content on the board matches an existing section, reuse that SAME section_id so it updates in place.\n"
+        f"- For NEW content not covered by any existing section, continue numbering from "
+        f"block-{max_block + 1} / diag-{max_diag + 1}.\n"
+        f"- Do NOT restart numbering from block-1. Only reuse an existing id if the content clearly corresponds to it."
+    )
+    return PROMPT + context
+
+
+def send_image_to_gemini(
+    image_path: str,
+    generate_diagrams: bool = True,
+    existing_section_ids: list[str] | None = None,
+) -> list[dict]:
     """Process chalkboard image and optionally generate images for diagrams.
-    
+
     When generate_diagrams is True, diagram sections will have their image bytes
     attached as '_image_bytes' and '_image_ext' keys (to be uploaded by the caller).
-    
+
+    Args:
+        image_path: Path to the chalkboard image.
+        generate_diagrams: Whether to generate enhanced diagram images.
+        existing_section_ids: Section IDs already stored for this room,
+            used to avoid duplicating notes across captures.
+
     Returns:
         List of section dictionaries with content
     """
@@ -248,7 +290,8 @@ def send_image_to_gemini(image_path: str, generate_diagrams: bool = True) -> lis
     ext = image_path.lower().rsplit(".", 1)[-1] if "." in image_path else "jpeg"
     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(ext, "image/jpeg")
 
-    logger.info(f"Sending image to OpenRouter model={OPENROUTER_MODEL}, mime={mime}, base64_len={len(image_data)}")
+    prompt = _build_prompt(existing_section_ids)
+    logger.info(f"Sending image to OpenRouter model={OPENROUTER_MODEL}, mime={mime}, base64_len={len(image_data)}, existing_ids={existing_section_ids}")
 
     resp = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
@@ -262,7 +305,7 @@ def send_image_to_gemini(image_path: str, generate_diagrams: bool = True) -> lis
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": PROMPT},
+                        {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_data}"}},
                     ],
                 }
