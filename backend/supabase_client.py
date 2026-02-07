@@ -75,23 +75,30 @@ def upsert_notes(room_id: str, sections: list[dict]) -> None:
 def get_notes_for_room(room_id: str) -> list[dict]:
     """Get all notes for a room with highlight counts."""
     sb = get_client()
-    result = (
+
+    # Fetch notes and highlights separately (no FK between tables)
+    notes_result = (
         sb.table("lecture_notes")
-        .select("*, highlights(highlight_count)")
+        .select("*")
         .eq("room_id", room_id)
         .order("id")
         .execute()
     )
+    highlights_result = (
+        sb.table("highlights")
+        .select("section_id, highlight_count")
+        .eq("room_id", room_id)
+        .execute()
+    )
+
+    # Build a lookup map: section_id -> highlight_count
+    hl_map = {
+        row["section_id"]: row.get("highlight_count", 0)
+        for row in highlights_result.data
+    }
+
     notes = []
-    for row in result.data:
-        highlight_data = row.get("highlights")
-        highlight_count = 0
-        if highlight_data:
-            # highlights is a list from the join; take the first match
-            if isinstance(highlight_data, list) and len(highlight_data) > 0:
-                highlight_count = highlight_data[0].get("highlight_count", 0)
-            elif isinstance(highlight_data, dict):
-                highlight_count = highlight_data.get("highlight_count", 0)
+    for row in notes_result.data:
         notes.append({
             "id": row["id"],
             "section_id": row["section_id"],
@@ -99,7 +106,7 @@ def get_notes_for_room(room_id: str) -> list[dict]:
             "content": row["content"],
             "caption": row.get("caption"),
             "image_url": row.get("image_url"),
-            "highlight_count": highlight_count,
+            "highlight_count": hl_map.get(row["section_id"], 0),
             "created_at": row.get("created_at"),
         })
     return notes

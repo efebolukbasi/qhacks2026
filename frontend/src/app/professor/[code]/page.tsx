@@ -69,33 +69,24 @@ export default function ProfessorRoomPage() {
     if (!room) return;
 
     const sb = getSupabase();
-    const [notesRes, commentsRes] = await Promise.all([
-      sb
-        .from("lecture_notes")
-        .select("*, highlights(highlight_count)")
-        .eq("room_id", room.id)
-        .order("id"),
-      sb
-        .from("comments")
-        .select("*")
-        .eq("room_id", room.id)
-        .order("created_at"),
+    const [notesRes, hlRes, commentsRes] = await Promise.all([
+      sb.from("lecture_notes").select("*").eq("room_id", room.id).order("id"),
+      sb.from("highlights").select("section_id, highlight_count").eq("room_id", room.id),
+      sb.from("comments").select("*").eq("room_id", room.id).order("created_at"),
     ]);
 
     if (notesRes.data) {
+      const hlMap = new Map(
+        (hlRes.data || []).map((h: Record<string, unknown>) => [h.section_id as string, (h.highlight_count as number) || 0])
+      );
       setNotes(
-        notesRes.data.map((row: Record<string, unknown>) => {
-          const hl = row.highlights as Record<string, unknown>[] | null;
-          let count = 0;
-          if (Array.isArray(hl) && hl.length > 0) count = (hl[0].highlight_count as number) || 0;
-          return {
-            section_id: row.section_id as string,
-            type: row.type as string,
-            content: row.content as string,
-            caption: row.caption as string | undefined,
-            highlight_count: count,
-          };
-        })
+        notesRes.data.map((row: Record<string, unknown>) => ({
+          section_id: row.section_id as string,
+          type: row.type as string,
+          content: row.content as string,
+          caption: row.caption as string | undefined,
+          highlight_count: hlMap.get(row.section_id as string) || 0,
+        }))
       );
     }
     if (commentsRes.data) {

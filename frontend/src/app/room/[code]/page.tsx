@@ -55,27 +55,26 @@ export default function StudentRoomPage() {
   // Fetch notes from Supabase
   const fetchNotes = useCallback(async () => {
     if (!room) return;
-    const { data } = await getSupabase()
-      .from("lecture_notes")
-      .select("*, highlights(highlight_count)")
-      .eq("room_id", room.id)
-      .order("id");
+    const sb = getSupabase();
 
-    if (data) {
-      const mapped: NoteSection[] = data.map((row: Record<string, unknown>) => {
-        const hl = row.highlights as Record<string, unknown>[] | Record<string, unknown> | null;
-        let count = 0;
-        if (Array.isArray(hl) && hl.length > 0) count = (hl[0].highlight_count as number) || 0;
-        else if (hl && typeof hl === "object" && !Array.isArray(hl)) count = (hl.highlight_count as number) || 0;
-        return {
-          section_id: row.section_id as string,
-          type: row.type as NoteSection["type"],
-          content: row.content as string,
-          caption: row.caption as string | undefined,
-          image_url: row.image_url as string | undefined,
-          highlight_count: count,
-        };
-      });
+    // Fetch notes and highlights separately (no FK between tables)
+    const [notesRes, hlRes] = await Promise.all([
+      sb.from("lecture_notes").select("*").eq("room_id", room.id).order("id"),
+      sb.from("highlights").select("section_id, highlight_count").eq("room_id", room.id),
+    ]);
+
+    if (notesRes.data) {
+      const hlMap = new Map(
+        (hlRes.data || []).map((h: Record<string, unknown>) => [h.section_id as string, (h.highlight_count as number) || 0])
+      );
+      const mapped: NoteSection[] = notesRes.data.map((row: Record<string, unknown>) => ({
+        section_id: row.section_id as string,
+        type: row.type as NoteSection["type"],
+        content: row.content as string,
+        caption: row.caption as string | undefined,
+        image_url: row.image_url as string | undefined,
+        highlight_count: hlMap.get(row.section_id as string) || 0,
+      }));
       setNotes(mapped);
       prevNoteIdsRef.current = new Set(mapped.map((n) => n.section_id));
     }
