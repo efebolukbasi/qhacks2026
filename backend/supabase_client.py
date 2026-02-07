@@ -53,6 +53,46 @@ def get_room_by_code(code: str) -> dict | None:
     return result.data[0] if result.data else None
 
 
+def get_all_rooms() -> list[dict]:
+    """Return all active rooms with their note counts."""
+    sb = get_client()
+    rooms_result = (
+        sb.table("rooms")
+        .select("id, code, name, created_at")
+        .eq("is_active", True)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    if not rooms_result.data:
+        return []
+
+    # Fetch note counts per room in bulk
+    room_ids = [r["id"] for r in rooms_result.data]
+    notes_result = (
+        sb.table("lecture_notes")
+        .select("room_id")
+        .in_("room_id", room_ids)
+        .execute()
+    )
+
+    # Count notes per room
+    note_counts: dict[str, int] = {}
+    for row in notes_result.data:
+        rid = row["room_id"]
+        note_counts[rid] = note_counts.get(rid, 0) + 1
+
+    rooms = []
+    for r in rooms_result.data:
+        rooms.append({
+            "id": r["id"],
+            "code": r["code"],
+            "name": r.get("name"),
+            "created_at": r["created_at"],
+            "note_count": note_counts.get(r["id"], 0),
+        })
+    return rooms
+
+
 def verify_professor_key(code: str, key: str) -> bool:
     """Check whether the provided key matches the room's professor_key."""
     sb = get_client()

@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from supabase_client import (
     create_room,
     get_room_by_code,
+    get_all_rooms,
     verify_professor_key,
     upsert_notes,
     get_notes_for_room,
@@ -53,6 +54,12 @@ def _get_room_lock(room_id: str) -> asyncio.Lock:
 # ---------------------------------------------------------------------------
 # Room endpoints
 # ---------------------------------------------------------------------------
+
+@app.get("/rooms")
+async def api_list_rooms():
+    """List all active rooms with note counts."""
+    return get_all_rooms()
+
 
 @app.post("/rooms")
 async def api_create_room(body: dict | None = None):

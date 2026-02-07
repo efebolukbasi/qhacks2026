@@ -35,6 +35,13 @@ export default function RootLayout({
               </Link>
               <span className="px-1.5 text-rule select-none">/</span>
               <Link
+                href="/rooms"
+                className="border-b border-transparent px-3 py-1 text-graphite transition-colors duration-200 hover:border-on-dark-dim/30 hover:text-on-dark"
+              >
+                rooms
+              </Link>
+              <span className="px-1.5 text-rule select-none">/</span>
+              <Link
                 href="/professor"
                 className="border-b border-transparent px-3 py-1 text-graphite transition-colors duration-200 hover:border-on-dark-dim/30 hover:text-on-dark"
               >
