@@ -1,5 +1,6 @@
 import os
 import uuid
+import asyncio
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -63,7 +64,11 @@ async def upload_image(file: UploadFile = File(...)):
         f.write(contents)
 
     try:
-        sections = send_image_to_gemini(str(filepath), generate_diagrams=True, diagrams_dir=DIAGRAMS_DIR)
+        # Run synchronous Gemini call in a thread so the event loop stays free
+        # for Socket.IO heartbeats and client connections
+        sections = await asyncio.to_thread(
+            send_image_to_gemini, str(filepath), True, DIAGRAMS_DIR
+        )
     except Exception as e:
         logger.error(f"Gemini API error: {e}")
         return {"error": "Failed to process image with Gemini", "detail": str(e)}

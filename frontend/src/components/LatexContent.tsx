@@ -15,6 +15,10 @@ import "katex/dist/katex.min.css";
  */
 export default function LatexContent({ text }: { text: string }) {
   const parts = useMemo(() => {
+    // Normalise literal backslash-n sequences that slipped through as text
+    // (e.g. from older DB entries where fix_latex_json over-escaped newlines)
+    const cleaned = text.replace(/\\n/g, "\n");
+
     // Match $$ (display), $ (inline), \[...\] (display), \(...\) (inline)
     const regex = /(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g;
     const segments: { type: "text" | "display" | "inline"; value: string }[] =
@@ -22,11 +26,11 @@ export default function LatexContent({ text }: { text: string }) {
     let lastIndex = 0;
     let match: RegExpExecArray | null;
 
-    while ((match = regex.exec(text)) !== null) {
+    while ((match = regex.exec(cleaned)) !== null) {
       if (match.index > lastIndex) {
         segments.push({
           type: "text",
-          value: text.slice(lastIndex, match.index),
+          value: cleaned.slice(lastIndex, match.index),
         });
       }
       const raw = match[1];
@@ -41,8 +45,8 @@ export default function LatexContent({ text }: { text: string }) {
       }
       lastIndex = regex.lastIndex;
     }
-    if (lastIndex < text.length) {
-      segments.push({ type: "text", value: text.slice(lastIndex) });
+    if (lastIndex < cleaned.length) {
+      segments.push({ type: "text", value: cleaned.slice(lastIndex) });
     }
     return segments;
   }, [text]);

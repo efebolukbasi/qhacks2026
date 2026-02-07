@@ -14,7 +14,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-sonnet-4")
 IMAGE_GEN_MODEL = "google/gemini-3-pro-image-preview"
 
-PROMPT = r"""You are converting a photograph of a chalkboard/whiteboard into clean, structured lecture notes.
+PROMPT = r"""You are converting a photograph of a chalkboard/whiteboard into clean, well-typeset lecture notes that read like a continuous document (similar to LaTeX lecture notes).
 
 RULES:
 1. Extract ONLY what is clearly written on the board. Do NOT hallucinate or add content.
@@ -24,8 +24,10 @@ RULES:
    - Display math: $$...$$ (e.g. $$\int_0^1 f(x)\,dx$$)
    - NEVER write math as plain text. Even simple variables like x, y, z should be $x$, $y$, $z$ when used mathematically.
    - NEVER duplicate content as both LaTeX and plain text.
-4. Group related content together as it appears on the board. One block of work = one section.
-5. For DIAGRAMS/FIGURES on the board:
+4. Write the content as flowing prose with embedded math, like you would in a LaTeX document. Use complete sentences where appropriate. Sections should read naturally one after the other as a continuous document.
+5. Group related content together as it appears on the board. One block of work = one section.
+6. Use newlines (\n) to separate paragraphs within a section. Keep the writing clean and readable.
+7. For DIAGRAMS/FIGURES on the board:
    - Set type to "diagram"
    - In "content", write a detailed description of the diagram suitable for an image generation model to recreate it. Describe shapes, axes, labels, arrows, positions, and relationships clearly.
    - Add a short "caption" field.
@@ -48,7 +50,7 @@ Example:
   {
     "section_id": "block-1",
     "type": "note",
-    "content": "Plane Equations\n\nA point on the plane: $(a, b, c)$\nA point $P$: $(x, y, z)$\n\nThe normal vector $\\vec{n}$ is perpendicular to the plane.\n\n$$\\vec{n} \\cdot (P - P_0) = 0$$"
+    "content": "Plane Equations\n\nConsider a point on the plane $(a, b, c)$ and an arbitrary point $P = (x, y, z)$.\n\nThe normal vector $\\vec{n}$ is perpendicular to the plane. We can express the equation of the plane as:\n\n$$\\vec{n} \\cdot (P - P_0) = 0$$"
   },
   {
     "section_id": "diag-1",
@@ -57,6 +59,35 @@ Example:
     "caption": "Plane with normal vector"
   }
 ]"""
+
+
+# Known LaTeX commands that start with characters that double as JSON escapes
+# (b → \b backspace, f → \f formfeed, n → \n newline, r → \r return, t → \t tab)
+_LATEX_CMDS_BY_FIRST = {
+    'b': ['bar', 'beta', 'bf', 'big', 'bigg', 'binom', 'boldsymbol', 'bot', 'bullet', 'boxed'],
+    'f': ['frac', 'forall', 'flat', 'flalign'],
+    'n': ['nabla', 'neg', 'neq', 'newcommand', 'newline', 'not', 'notin', 'nu', 'nolimits'],
+    'r': ['rangle', 'rceil', 'Re', 'rfloor', 'rho', 'right', 'rightarrow', 'Rightarrow'],
+    't': ['tau', 'text', 'textbf', 'textit', 'textrm', 'theta', 'tilde', 'times', 'to', 'top', 'triangle'],
+}
+
+
+def _is_latex_command(text: str, pos: int) -> bool:
+    """Check if text[pos:] starts with a known LaTeX command name.
+
+    `pos` should point to the first character AFTER the backslash.
+    Returns True only if a full command word matches (next char is non-alpha or end-of-string).
+    """
+    if pos >= len(text):
+        return False
+    candidates = _LATEX_CMDS_BY_FIRST.get(text[pos])
+    if not candidates:
+        return False
+    for cmd in candidates:
+        end = pos + len(cmd)
+        if text[pos:end] == cmd and (end >= len(text) or not text[end].isalpha()):
+            return True
+    return False
 
 
 def fix_latex_json(text: str) -> str:
@@ -99,12 +130,14 @@ def fix_latex_json(text: str) -> str:
                 result.append(text[i : i + 6])
                 i += 6
             elif next_ch in 'bfnrt':
-                # Could be JSON escape (\n, \t) or LaTeX (\frac, \nu, \theta, \rho)
-                if i + 2 < len(text) and text[i + 2].isalpha():
-                    result.append('\\\\')
+                # Ambiguous: could be a JSON escape (\n, \t, …) or a LaTeX
+                # command (\frac, \nu, \theta, …).  Check whether the text
+                # starting at next_ch matches a *known* LaTeX command word.
+                if _is_latex_command(text, i + 1):
+                    result.append('\\\\')   # LaTeX – escape the backslash
                     i += 1
                 else:
-                    result.append('\\')
+                    result.append('\\')     # JSON escape – keep as-is
                     i += 1
             else:
                 result.append('\\\\')

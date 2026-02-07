@@ -17,3 +17,55 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* LaTeX document styles */
+.latex-document {
+  font-family: 'Computer Modern Serif', 'Latin Modern Roman', 'Georgia', 'Times New Roman', serif;
+  font-size: 1.1rem;
+  line-height: 1.7;
+  color: #1a1a1a;
+}
+
+.latex-document .section-block {
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  border-radius: 6px;
+  margin-left: -0.75rem;
+  margin-right: -0.75rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.latex-document .section-block:hover {
+  background-color: rgba(250, 204, 21, 0.06);
+}
+
+.latex-document .section-block.highlighted {
+  background-color: rgba(250, 204, 21, 0.1);
+  border-left: 3px solid #facc15;
+  padding-left: calc(0.75rem - 3px);
+}
+
+.latex-document .section-block.newly-added {
+  animation: fadeInSection 0.8s ease-out;
+}
+
+@keyframes fadeInSection {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(250, 204, 21, 0.3); }
+  50% { border-color: rgba(250, 204, 21, 0.8); }
+}
+
+.latex-document .section-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, #d6d3d1, transparent);
+  margin: 1.5rem 0;
+}
