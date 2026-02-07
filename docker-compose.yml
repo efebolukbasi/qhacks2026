@@ -1,3 +1,8 @@
+# Optional: Local PostgreSQL for development without Supabase.
+# The primary database is hosted on Supabase — see backend/.env.example.
+# To use this instead, uncomment the DATABASE_URL line in backend/.env that
+# points to localhost:5432 and run:  docker compose up -d
+
 services:
   postgres:
     image: postgres:16-alpine

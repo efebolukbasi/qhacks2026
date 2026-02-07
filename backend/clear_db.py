@@ -1,15 +1,22 @@
-"""Clear all data from the database tables."""
+"""Clear all data from the database tables (keeps the tables themselves).
+
+Usage:
+    python clear_db.py
+"""
 import os
 import psycopg
 from dotenv import load_dotenv
 
 load_dotenv()
 
-conn = psycopg.connect(os.getenv("DATABASE_URL"))
+dsn = os.getenv("DATABASE_URL")
+if not dsn:
+    print("ERROR: DATABASE_URL not set in .env")
+    exit(1)
+
+conn = psycopg.connect(dsn, sslmode="require")
 with conn.cursor() as cur:
-    cur.execute("DELETE FROM comments")
-    cur.execute("DELETE FROM highlights")
-    cur.execute("DELETE FROM lecture_notes")
+    cur.execute("TRUNCATE comments, highlights, lecture_notes RESTART IDENTITY CASCADE")
 conn.commit()
 conn.close()
-print("Database cleared.")
+print("Database cleared — all rows removed, sequences reset.")

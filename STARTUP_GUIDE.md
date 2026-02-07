@@ -4,28 +4,32 @@ Quick guide to start the application for the first time.
 
 ## Prerequisites
 
-- Docker and Docker Compose
 - Python 3.12+
 - pnpm (Node.js package manager)
 - OpenRouter API key
+- A Supabase account and project (free tier works fine)
 
 ## First-Time Setup
 
-### 1. Start PostgreSQL Database
+### 1. Set Up Supabase Database
 
-```bash
-docker compose up -d
-```
+1. Go to [supabase.com](https://supabase.com) and create a project (or use an existing one).
+2. In your Supabase dashboard, go to **Project Settings > Database > Connection string**.
+3. Select **Transaction pooler** and copy the URI. It looks like:
+   ```
+   postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+   ```
 
-This starts PostgreSQL on port 5432.
+> **Local alternative:** If you prefer a local PostgreSQL instance, install Docker and run `docker compose up -d`. Then use `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/chalkboard` in your `.env`.
 
 ### 2. Configure Backend
 
-The `.env` file has been created in `backend/` with default values. **You must add your OpenRouter API key:**
+Copy the example env file and fill in your keys:
 
 ```bash
 cd backend
-# Edit .env and replace 'your-openrouter-api-key-here' with your actual API key
+cp .env.example .env
+# Edit .env with your actual values
 nano .env
 ```
 
@@ -33,7 +37,7 @@ Your `.env` should look like:
 ```
 OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxx
 OPENROUTER_MODEL=google/gemini-2.0-flash-001
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/chalkboard
+DATABASE_URL=postgresql://postgres.[your-ref]:[your-password]@aws-0-[region].pooler.supabase.com:6543/postgres
 ```
 
 ### 3. Install Backend Dependencies
@@ -61,6 +65,8 @@ cd backend
 ```
 
 Backend will run on: http://localhost:8000
+
+The database tables are created automatically on first run.
 
 ### Start Frontend Dev Server (in a new terminal)
 
@@ -105,13 +111,15 @@ Or configure `capture/config.json` with your IP camera URL and run:
 ## Troubleshooting
 
 ### Database Connection Issues
-- Ensure PostgreSQL container is running: `docker compose ps`
-- Check logs: `docker compose logs postgres`
+- Verify your `DATABASE_URL` in `backend/.env` is correct
+- If using Supabase, ensure you copied the **Transaction pooler** URI (port 6543)
+- Check that your Supabase project is not paused (free-tier projects pause after inactivity)
+- If using local Docker: ensure the container is running with `docker compose ps`
 
 ### Backend Issues
 - Verify `.env` file has valid OPENROUTER_API_KEY
 - Check backend logs for errors
-- Database will auto-initialize on first run
+- Database tables are auto-created on first run
 
 ### Frontend Issues
 - Clear browser cache
@@ -126,7 +134,6 @@ Or configure `capture/config.json` with your IP camera URL and run:
 ## Stopping the Application
 
 - Press `Ctrl+C` in each terminal running the servers
-- Stop PostgreSQL: `docker compose down`
 
 ## Next Steps
 

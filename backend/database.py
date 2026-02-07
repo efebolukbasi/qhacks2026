@@ -9,7 +9,7 @@ _dsn: str | None = None
 
 
 def _get_conn():
-    return psycopg.connect(_dsn, row_factory=dict_row)
+    return psycopg.connect(_dsn, row_factory=dict_row, sslmode="require")
 
 
 def _run_sync(fn, *args):

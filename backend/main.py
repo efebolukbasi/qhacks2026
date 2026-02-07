@@ -14,7 +14,7 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from database import create_pool, close_pool, init_db, upsert_notes, get_all_notes, increment_highlight, add_comment, get_comments
+from database import create_pool, close_pool, upsert_notes, get_all_notes, increment_highlight, add_comment, get_comments
 from gemini_service import send_image_to_gemini
 
 logging.basicConfig(level=logging.INFO)
@@ -32,8 +32,7 @@ sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_pool()
-    await init_db()
-    logger.info("Database initialized")
+    logger.info("Database connected")
     yield
     await close_pool()
     logger.info("Database connection closed")
