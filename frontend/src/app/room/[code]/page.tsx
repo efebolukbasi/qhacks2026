@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { getSupabase, BACKEND_URL } from "@/lib/supabase";
 import LatexContent from "@/components/LatexContent";
+import StreamingLatexContent from "@/components/StreamingLatexContent";
 
 interface NoteSection {
   section_id: string;
@@ -52,6 +53,7 @@ export default function StudentRoomPage() {
   const notesRef = useRef<NoteSection[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
+  const [newSectionIds, setNewSectionIds] = useState<Set<string>>(new Set());
 
   // Fetch room info
   useEffect(() => {
@@ -99,6 +101,21 @@ export default function StudentRoomPage() {
         image_url: row.image_url as string | undefined,
         highlight_count: hlMap.get(row.section_id as string) || 0,
       }));
+
+      // Detect brand-new sections to trigger streaming animation
+      const prevIds = prevNoteIdsRef.current;
+      if (prevIds.size > 0) {
+        const fresh = new Set<string>();
+        for (const n of mapped) {
+          if (!prevIds.has(n.section_id)) {
+            fresh.add(n.section_id);
+          }
+        }
+        if (fresh.size > 0) {
+          setNewSectionIds((prev) => new Set([...prev, ...fresh]));
+        }
+      }
+
       setNotes(mapped);
       notesRef.current = mapped;
       prevNoteIdsRef.current = new Set(mapped.map((n) => n.section_id));
@@ -325,6 +342,78 @@ export default function StudentRoomPage() {
               const sectionComments = comments.filter(
                 (c) => c.section_id === note.section_id
               );
+              const isNew = newSectionIds.has(note.section_id);
+              const handleStreamDone = () => {
+                setNewSectionIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(note.section_id);
+                  return next;
+                });
+              };
+
+              const renderContent = () => {
+                if (note.type === "diagram") {
+                  return (
+                    <figure className={`my-4 ${isNew ? "animate-fadeIn" : ""}`}>
+                      {note.image_url ? (
+                        <div className="relative mx-auto max-w-md aspect-video">
+                          <Image
+                            src={note.image_url || ""}
+                            alt={note.caption || "Diagram"}
+                            fill
+                            className="rounded border border-ink/10 object-contain"
+                            unoptimized
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="mx-auto max-w-md rounded border border-ink/10 p-6"
+                          dangerouslySetInnerHTML={{ __html: note.content }}
+                        />
+                      )}
+                      {note.caption && (
+                        <figcaption className="mt-2 text-center font-mono text-[10px] italic text-ink-mid">
+                          {note.caption}
+                        </figcaption>
+                      )}
+                    </figure>
+                  );
+                }
+                if (note.type === "definition") {
+                  return (
+                    <div className="def-callout my-3 rounded-r">
+                      <p className="mb-1 font-mono text-[9px] font-semibold uppercase tracking-widest text-copper">
+                        Definition
+                      </p>
+                      <StreamingLatexContent
+                        text={note.content}
+                        stream={isNew}
+                        onStreamComplete={handleStreamDone}
+                      />
+                    </div>
+                  );
+                }
+                if (note.type === "equation") {
+                  return (
+                    <div className="eq-display my-3">
+                      <StreamingLatexContent
+                        text={note.content}
+                        stream={isNew}
+                        onStreamComplete={handleStreamDone}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <div className="my-1">
+                    <StreamingLatexContent
+                      text={note.content}
+                      stream={isNew}
+                      onStreamComplete={handleStreamDone}
+                    />
+                  </div>
+                );
+              };
 
               return (
                 <div key={note.section_id}>
@@ -344,46 +433,7 @@ export default function StudentRoomPage() {
                       </span>
                     )}
 
-                    {note.type === "diagram" ? (
-                      <figure className="my-4">
-                        {note.image_url ? (
-                          <div className="relative mx-auto max-w-md aspect-video">
-                            <Image
-                              src={note.image_url || ""}
-                              alt={note.caption || "Diagram"}
-                              fill
-                              className="rounded border border-ink/10 object-contain"
-                              unoptimized
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            className="mx-auto max-w-md rounded border border-ink/10 p-6"
-                            dangerouslySetInnerHTML={{ __html: note.content }}
-                          />
-                        )}
-                        {note.caption && (
-                          <figcaption className="mt-2 text-center font-mono text-[10px] italic text-ink-mid">
-                            {note.caption}
-                          </figcaption>
-                        )}
-                      </figure>
-                    ) : note.type === "definition" ? (
-                      <div className="def-callout my-3 rounded-r">
-                        <p className="mb-1 font-mono text-[9px] font-semibold uppercase tracking-widest text-copper">
-                          Definition
-                        </p>
-                        <LatexContent text={note.content} />
-                      </div>
-                    ) : note.type === "equation" ? (
-                      <div className="eq-display my-3">
-                        <LatexContent text={note.content} />
-                      </div>
-                    ) : (
-                      <div className="my-1">
-                        <LatexContent text={note.content} />
-                      </div>
-                    )}
+                    {renderContent()}
 
                     {/* Inline comments for this section */}
                     {sectionComments.length > 0 && (
