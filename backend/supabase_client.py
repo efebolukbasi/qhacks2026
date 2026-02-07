@@ -140,3 +140,23 @@ def get_comments_for_room(room_id: str) -> list[dict]:
         .execute()
     )
     return result.data
+
+
+# ---------------------------------------------------------------------------
+# Storage (diagram images)
+# ---------------------------------------------------------------------------
+
+DIAGRAMS_BUCKET = "diagrams"
+
+
+def upload_diagram(filename: str, image_bytes: bytes, content_type: str = "image/png") -> str:
+    """Upload a diagram image to Supabase Storage and return its public URL."""
+    sb = get_client()
+    sb.storage.from_(DIAGRAMS_BUCKET).upload(
+        filename,
+        image_bytes,
+        {"content-type": content_type},
+    )
+    public_url = sb.storage.from_(DIAGRAMS_BUCKET).get_public_url(filename)
+    logger.info(f"Uploaded diagram to Supabase Storage: {public_url}")
+    return public_url

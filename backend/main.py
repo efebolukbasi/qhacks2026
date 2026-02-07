@@ -2,6 +2,7 @@ import os
 import uuid
 import asyncio
 import logging
+import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -10,7 +11,6 @@ load_dotenv()
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from supabase_client import (
     create_room,
@@ -20,17 +20,12 @@ from supabase_client import (
     increment_highlight,
     add_comment,
     get_comments_for_room,
+    upload_diagram,
 )
 from gemini_service import send_image_to_gemini
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-UPLOADS_DIR = Path(__file__).parent / "uploads"
-UPLOADS_DIR.mkdir(exist_ok=True)
-
-DIAGRAMS_DIR = UPLOADS_DIR / "diagrams"
-DIAGRAMS_DIR.mkdir(exist_ok=True)
 
 app = FastAPI()
 
@@ -41,9 +36,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Serve generated diagram images
-app.mount("/diagrams", StaticFiles(directory=str(DIAGRAMS_DIR)), name="diagrams")
 
 
 # ---------------------------------------------------------------------------
@@ -79,21 +71,36 @@ async def upload_image(code: str, file: UploadFile = File(...)):
     if not room:
         raise HTTPException(404, "Room not found")
 
-    ext = Path(file.filename).suffix if file.filename else ".png"
-    filename = f"{uuid.uuid4()}{ext}"
-    filepath = UPLOADS_DIR / filename
-
+    # Save upload to a temp file (cleaned up automatically)
     contents = await file.read()
-    with open(filepath, "wb") as f:
-        f.write(contents)
+    ext = Path(file.filename).suffix if file.filename else ".jpg"
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp.write(contents)
+        tmp_path = tmp.name
 
     try:
         sections = await asyncio.to_thread(
-            send_image_to_gemini, str(filepath), True, DIAGRAMS_DIR
+            send_image_to_gemini, tmp_path, True
         )
     except Exception as e:
         logger.error(f"Gemini API error: {e}")
         raise HTTPException(502, f"Failed to process image: {e}")
+    finally:
+        # Clean up temp file
+        Path(tmp_path).unlink(missing_ok=True)
+
+    # Upload any generated diagram images to Supabase Storage
+    for section in sections:
+        img_bytes = section.pop("_image_bytes", None)
+        img_ext = section.pop("_image_ext", None)
+        if img_bytes and img_ext:
+            mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(img_ext, "image/png")
+            filename = f"diagram_{uuid.uuid4()}.{img_ext}"
+            try:
+                public_url = upload_diagram(filename, img_bytes, mime)
+                section["image_url"] = public_url
+            except Exception as e:
+                logger.error(f"Failed to upload diagram to storage: {e}")
 
     # Write results to Supabase — Realtime will push updates to clients
     upsert_notes(room["id"], sections)
