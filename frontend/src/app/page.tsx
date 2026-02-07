@@ -84,6 +84,18 @@ export default function HomePage() {
             Create a Room
           </button>
         </div>
+
+        <div className="mt-6 border-t border-rule pt-6">
+          <p className="text-xs text-on-dark-dim">
+            Or browse all available rooms
+          </p>
+          <button
+            onClick={() => router.push("/rooms")}
+            className="mt-2 rounded-lg border border-rule bg-bg-raised px-5 py-2.5 font-mono text-xs font-medium text-on-dark transition-colors hover:border-on-dark-dim/30"
+          >
+            Browse Rooms
+          </button>
+        </div>
       </div>
     </div>
   );

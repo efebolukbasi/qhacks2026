@@ -167,15 +167,6 @@ body::after {
 .latex-truncate {
   max-height: 1.6em;
   overflow: hidden;
-  position: relative;
-}
-.latex-truncate::after {
-  content: '\2026';
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  padding-left: 1em;
-  background: linear-gradient(to right, transparent, var(--bg) 40%);
 }
 
 /* Annotation input */
@@ -507,4 +498,28 @@ body::after {
 .bar-animate {
   animation: barGrow 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   transform-origin: left;
+}
+
+/* Streaming cursor — blinking caret after text during typewriter reveal */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+  background: var(--copper);
+  animation: cursorBlink 0.6s steps(2, start) infinite;
+}
+
+@keyframes cursorBlink {
+  to { opacity: 0; }
+}
+
+/* Fade-in for diagrams arriving via streaming */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

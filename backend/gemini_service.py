@@ -233,16 +233,21 @@ def generate_diagram_image(chalkboard_image_path: str) -> tuple[bytes, str] | No
         return None
 
 
-def _build_prompt(existing_section_ids: list[str] | None = None) -> str:
-    """Build the full prompt, injecting existing section IDs when available."""
-    if not existing_section_ids:
+def _build_prompt(existing_sections: list[dict] | None = None) -> str:
+    """Build the full prompt, injecting existing section summaries when available.
+
+    Args:
+        existing_sections: List of dicts with keys section_id, type, and
+            content_preview.  When None or empty the base prompt is returned.
+    """
+    if not existing_sections:
         return PROMPT
 
-    ids_list = ", ".join(existing_section_ids)
     # Find the highest block/diag numbers so the AI knows where to continue
     max_block = 0
     max_diag = 0
-    for sid in existing_section_ids:
+    for sec in existing_sections:
+        sid = sec["section_id"]
         if sid.startswith("block-"):
             try:
                 max_block = max(max_block, int(sid.split("-", 1)[1]))
@@ -254,13 +259,24 @@ def _build_prompt(existing_section_ids: list[str] | None = None) -> str:
             except ValueError:
                 pass
 
+    # Build a readable summary of each existing section so the AI can
+    # decide whether the current board content matches one of them.
+    section_lines = []
+    for sec in existing_sections:
+        preview = sec.get("content_preview", "")
+        section_lines.append(
+            f'  - {sec["section_id"]} (type={sec["type"]}): "{preview}"'
+        )
+    sections_block = "\n".join(section_lines)
+
     context = (
         f"\n\nIMPORTANT — EXISTING NOTES CONTEXT:\n"
-        f"The following section_ids already exist for this lecture: [{ids_list}]\n"
-        f"- If content on the board matches an existing section, reuse that SAME section_id so it updates in place.\n"
-        f"- For NEW content not covered by any existing section, continue numbering from "
+        f"The following sections already exist for this lecture:\n{sections_block}\n\n"
+        f"- If the board still shows the SAME content as an existing section, you MUST reuse that section_id so it updates in place.\n"
+        f"- Only create a NEW section_id for content that is genuinely new and not covered by any existing section.\n"
+        f"- For new content, continue numbering from "
         f"block-{max_block + 1} / diag-{max_diag + 1}.\n"
-        f"- Do NOT restart numbering from block-1. Only reuse an existing id if the content clearly corresponds to it."
+        f"- Do NOT restart numbering from block-1."
     )
     return PROMPT + context
 
@@ -268,7 +284,7 @@ def _build_prompt(existing_section_ids: list[str] | None = None) -> str:
 def send_image_to_gemini(
     image_path: str,
     generate_diagrams: bool = True,
-    existing_section_ids: list[str] | None = None,
+    existing_sections: list[dict] | None = None,
 ) -> list[dict]:
     """Process chalkboard image and optionally generate images for diagrams.
 
@@ -278,8 +294,9 @@ def send_image_to_gemini(
     Args:
         image_path: Path to the chalkboard image.
         generate_diagrams: Whether to generate enhanced diagram images.
-        existing_section_ids: Section IDs already stored for this room,
-            used to avoid duplicating notes across captures.
+        existing_sections: Section summaries already stored for this room
+            (each dict has section_id, type, content_preview), used to avoid
+            duplicating notes across captures.
 
     Returns:
         List of section dictionaries with content
@@ -290,8 +307,9 @@ def send_image_to_gemini(
     ext = image_path.lower().rsplit(".", 1)[-1] if "." in image_path else "jpeg"
     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(ext, "image/jpeg")
 
-    prompt = _build_prompt(existing_section_ids)
-    logger.info(f"Sending image to OpenRouter model={OPENROUTER_MODEL}, mime={mime}, base64_len={len(image_data)}, existing_ids={existing_section_ids}")
+    existing_ids = [s["section_id"] for s in existing_sections] if existing_sections else []
+    prompt = _build_prompt(existing_sections)
+    logger.info(f"Sending image to OpenRouter model={OPENROUTER_MODEL}, mime={mime}, base64_len={len(image_data)}, existing_ids={existing_ids}")
 
     resp = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
@@ -329,16 +347,26 @@ def send_image_to_gemini(
     logger.info(f"AI response (fixed): {text[:500]}")
     sections = json.loads(text)
     
-    # Generate actual images for diagram sections
+    # Generate actual images for NEW diagram sections only.
+    # Reused sections that already have an image are skipped.
+    sections_with_images = {
+        s["section_id"]
+        for s in (existing_sections or [])
+        if s.get("image_url")
+    }
+
     if generate_diagrams:
         for section in sections:
-            if section.get("type") == "diagram":
+            sid = section.get("section_id")
+            if section.get("type") == "diagram" and sid not in sections_with_images:
                 result = generate_diagram_image(image_path)
                 if result:
                     img_bytes, img_ext = result
                     # Attach raw bytes so the caller can upload to storage
                     section["_image_bytes"] = img_bytes
                     section["_image_ext"] = img_ext
-                    logger.info(f"Generated diagram for section {section.get('section_id')}")
+                    logger.info(f"Generated diagram for section {sid}")
+            elif sid in sections_with_images:
+                logger.info(f"Skipping image generation for reused section {sid}")
     
     return sections

@@ -2,6 +2,7 @@
 
 import os
 import random
+import secrets
 import string
 import logging
 
@@ -34,10 +35,11 @@ def _generate_code(length: int = 6) -> str:
 
 
 def create_room(name: str | None = None) -> dict:
-    """Create a new room and return it."""
+    """Create a new room and return it (including the professor_key)."""
     sb = get_client()
     code = _generate_code()
-    row = {"code": code}
+    professor_key = secrets.token_urlsafe(16)
+    row = {"code": code, "professor_key": professor_key}
     if name:
         row["name"] = name
     result = sb.table("rooms").insert(row).execute()
@@ -49,6 +51,61 @@ def get_room_by_code(code: str) -> dict | None:
     sb = get_client()
     result = sb.table("rooms").select("*").eq("code", code.upper()).eq("is_active", True).execute()
     return result.data[0] if result.data else None
+
+
+def get_all_rooms() -> list[dict]:
+    """Return all active rooms with their note counts."""
+    sb = get_client()
+    rooms_result = (
+        sb.table("rooms")
+        .select("id, code, name, created_at")
+        .eq("is_active", True)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    if not rooms_result.data:
+        return []
+
+    # Fetch note counts per room in bulk
+    room_ids = [r["id"] for r in rooms_result.data]
+    notes_result = (
+        sb.table("lecture_notes")
+        .select("room_id")
+        .in_("room_id", room_ids)
+        .execute()
+    )
+
+    # Count notes per room
+    note_counts: dict[str, int] = {}
+    for row in notes_result.data:
+        rid = row["room_id"]
+        note_counts[rid] = note_counts.get(rid, 0) + 1
+
+    rooms = []
+    for r in rooms_result.data:
+        rooms.append({
+            "id": r["id"],
+            "code": r["code"],
+            "name": r.get("name"),
+            "created_at": r["created_at"],
+            "note_count": note_counts.get(r["id"], 0),
+        })
+    return rooms
+
+
+def verify_professor_key(code: str, key: str) -> bool:
+    """Check whether the provided key matches the room's professor_key."""
+    sb = get_client()
+    result = (
+        sb.table("rooms")
+        .select("professor_key")
+        .eq("code", code.upper())
+        .eq("is_active", True)
+        .execute()
+    )
+    if not result.data:
+        return False
+    return result.data[0].get("professor_key") == key
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +140,27 @@ def get_existing_section_ids(room_id: str) -> list[str]:
         .execute()
     )
     return [row["section_id"] for row in result.data]
+
+
+def get_existing_sections_summary(room_id: str) -> list[dict]:
+    """Return section_id, type, content snippet, and image_url for each existing section."""
+    sb = get_client()
+    result = (
+        sb.table("lecture_notes")
+        .select("section_id, type, content, image_url")
+        .eq("room_id", room_id)
+        .order("id")
+        .execute()
+    )
+    return [
+        {
+            "section_id": row["section_id"],
+            "type": row["type"],
+            "content_preview": (row.get("content") or "")[:150],
+            "image_url": row.get("image_url"),
+        }
+        for row in result.data
+    ]
 
 
 def get_notes_for_room(room_id: str) -> list[dict]:
@@ -139,14 +217,17 @@ def increment_highlight(room_id: str, section_id: str) -> int:
     return result.data if isinstance(result.data, int) else 1
 
 
-def add_comment(room_id: str, section_id: str, comment: str) -> None:
-    """Add a student comment/question."""
+def add_comment(room_id: str, section_id: str, comment: str, highlighted_text: str | None = None) -> None:
+    """Add a student comment/question, optionally with the highlighted text snippet."""
     sb = get_client()
-    sb.table("comments").insert({
+    row = {
         "room_id": room_id,
         "section_id": section_id,
         "comment": comment,
-    }).execute()
+    }
+    if highlighted_text:
+        row["highlighted_text"] = highlighted_text
+    sb.table("comments").insert(row).execute()
 
 
 def get_comments_for_room(room_id: str) -> list[dict]:
