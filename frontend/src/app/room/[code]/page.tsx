@@ -235,12 +235,7 @@ export default function StudentRoomPage() {
                       isHighlighted ? "highlighted" : ""
                     }`}
                   >
-                    {note.highlight_count > 0 && (
-                      <span className="absolute -right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-cinnabar font-mono text-[9px] font-bold text-cream opacity-0 group-hover:opacity-100 transition-opacity">
-                        {note.highlight_count}
-                      </span>
-                    )}
-
+                    {/* Note content */}
                     {note.type === "diagram" ? (
                       <figure className="my-4">
                         {note.image_url ? (
@@ -278,26 +273,42 @@ export default function StudentRoomPage() {
                       </div>
                     ) : (
                       <div className="my-1">
-
-                                            {note.type !== "diagram" && (
-                                              <div className="mt-2 mb-2">
-                                                <VoiceButton text={note.content} />
-                                              </div>
-                                            )}
                         <LatexContent text={note.content} />
                       </div>
                     )}
 
+                    {/* Section toolbar — voice + highlight, revealed on hover */}
+                    {note.type !== "diagram" && (
+                      <div className="section-toolbar">
+                        <VoiceButton text={note.content} />
+                        {note.highlight_count > 0 && (
+                          <span className="hl-count">
+                            {note.highlight_count}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Diagram highlight badge only */}
+                    {note.type === "diagram" && note.highlight_count > 0 && (
+                      <div className="section-toolbar">
+                        <span className="hl-count">
+                          {note.highlight_count}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Expanded comment input */}
                     {isExpanded && (
                       <div
-                        className="mt-2 mb-1 flex gap-2 rounded border border-ink/10 bg-cream-dim/50 p-2"
+                        className="section-comment-row"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <input
                           type="text"
                           value={commentText}
                           onChange={(e) => setCommentText(e.target.value)}
-                          placeholder="Leave a question..."
+                          placeholder="Leave a question\u2026"
                           className="annotation-field flex-1 rounded border border-ink/10 bg-cream px-3 py-1.5 text-sm text-ink outline-none focus:border-cinnabar/40"
                           autoFocus
                           onKeyDown={(e) => {

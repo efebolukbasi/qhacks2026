@@ -1,22 +1,31 @@
 'use client'
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 export default function VoiceButton({ text }: { text: string }) {
     const [status, setStatus] = useState<"idle" | "generating" | "playing">("idle");
+    const audioRef = useRef<HTMLAudioElement | null>(null);
 
-    async function play_voice(text: string) {
+    async function handleClick(e: React.MouseEvent) {
+        e.stopPropagation();
+
+        if (status === "playing") {
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
+            setStatus("idle");
+            return;
+        }
+
         if (status !== "idle") return;
         setStatus("generating");
         try {
             const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
-            // Call secure backend endpoint instead of directly exposing API key
             const response = await fetch(`${BACKEND_URL}/tts`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     text: text,
                     voice_id: "onwK4e9ZLuTAKqWW03F9",
@@ -27,75 +36,60 @@ export default function VoiceButton({ text }: { text: string }) {
                 throw new Error(`TTS error: ${response.statusText}`);
             }
 
-            // Stream the audio blob
             const audioBlob = await response.blob();
             const audioUrl = URL.createObjectURL(audioBlob);
             const audioElement = new Audio(audioUrl);
+            audioRef.current = audioElement;
 
             setStatus("playing");
 
-            // Cleanup and state handling
             const cleanup = () => {
-                try {
-                    URL.revokeObjectURL(audioUrl);
-                } catch {}
+                try { URL.revokeObjectURL(audioUrl); } catch {}
+                audioRef.current = null;
                 setStatus("idle");
             };
 
             audioElement.addEventListener("ended", cleanup);
-            audioElement.addEventListener("error", (e) => {
-                console.error("Audio playback error:", e);
-                cleanup();
-            });
+            audioElement.addEventListener("error", () => cleanup());
 
             await audioElement.play();
         } catch (error) {
             console.error("Error playing audio:", error);
+            audioRef.current = null;
             setStatus("idle");
         }
     }
 
-    const label =
-        status === "generating"
-            ? "Generating..."
-            : status === "playing"
-              ? "Playing..."
-              : "Play Dialogue";
+    const title =
+        status === "generating" ? "Generating audio\u2026" :
+        status === "playing" ? "Click to stop" :
+        "Listen to this section";
 
     return (
         <button
             type="button"
-            onClick={() => play_voice(text)}
-            disabled={status !== "idle"}
-            className="inline-flex items-center gap-2 rounded bg-cinnabar px-3 py-1.5 font-mono text-[12px] font-semibold uppercase tracking-wider text-cream transition-colors hover:bg-cinnabar/90 disabled:opacity-40"
-            aria-label="Play note audio"
+            onClick={handleClick}
+            title={title}
+            aria-label={title}
+            data-status={status}
+            className="voice-btn"
         >
-            {status !== "idle" ? (
-                <>
-                    <svg
-                        className="h-4 w-4 animate-spin text-cream"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                    >
-                        <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                        />
-                        <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                        />
-                    </svg>
-                    {label}
-                </>
+            {status === "generating" ? (
+                <span className="voice-dots">
+                    <span /><span /><span />
+                </span>
+            ) : status === "playing" ? (
+                <svg className="voice-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {/* Equaliser bars — animate while playing */}
+                    <rect className="voice-bar voice-bar-1" x="4"  y="4" width="3" rx="1.5" height="16" fill="currentColor" />
+                    <rect className="voice-bar voice-bar-2" x="10.5" y="7" width="3" rx="1.5" height="10" fill="currentColor" />
+                    <rect className="voice-bar voice-bar-3" x="17" y="2" width="3" rx="1.5" height="20" fill="currentColor" />
+                </svg>
             ) : (
-                label
+                <svg className="voice-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                </svg>
             )}
         </button>
     );

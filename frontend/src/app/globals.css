@@ -189,6 +189,139 @@ body::after {
   opacity: 0.5;
 }
 
+/* ============================================================
+   SECTION TOOLBAR — marginal controls per section block
+   Like a scholar's ink annotation in the margin.
+   ============================================================ */
+.section-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.section-block:hover .section-toolbar,
+.section-block .section-toolbar:focus-within,
+/* Always show toolbar when voice is active */
+.section-block .voice-btn[data-status="generating"] ~ .section-toolbar,
+.section-block .section-toolbar:has(.voice-btn[data-status="generating"]),
+.section-block .section-toolbar:has(.voice-btn[data-status="playing"]) {
+  opacity: 1;
+}
+
+/* Highlight count — small typographic numeral */
+.hl-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.25rem;
+  border-radius: 3px;
+  background: var(--cinnabar-dim);
+  color: var(--cinnabar);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* Comment row */
+.section-comment-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(44, 32, 20, 0.1);
+  background: rgba(232, 224, 210, 0.5);
+}
+
+/* ============================================================
+   VOICE BUTTON — ink-toned marginal speaker icon
+   ============================================================ */
+.voice-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--ink-mid);
+  background: transparent;
+  transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+  flex-shrink: 0;
+}
+
+.voice-btn:hover {
+  color: var(--ink);
+  background: rgba(44, 32, 20, 0.05);
+  border-color: rgba(44, 32, 20, 0.1);
+}
+
+.voice-btn[data-status="generating"] {
+  color: var(--lamplight);
+  cursor: wait;
+}
+
+.voice-btn[data-status="playing"] {
+  color: var(--cinnabar);
+  background: var(--cinnabar-dim);
+  border-color: rgba(217, 79, 61, 0.18);
+}
+
+.voice-btn .voice-svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* Generating — three dots with warm lamplight glow */
+.voice-dots {
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+}
+
+.voice-dots > span {
+  display: block;
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 50%;
+  background: var(--lamplight);
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+
+.voice-dots > span:nth-child(2) { animation-delay: 0.2s; }
+.voice-dots > span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* Playing — equaliser bars that bounce */
+.voice-bar {
+  transform-origin: center bottom;
+  animation: barBounce 0.8s ease-in-out infinite alternate;
+}
+
+.voice-bar-1 { animation-delay: 0s; }
+.voice-bar-2 { animation-delay: 0.2s; }
+.voice-bar-3 { animation-delay: 0.4s; }
+
+@keyframes barBounce {
+  0%   { transform: scaleY(0.35); }
+  100% { transform: scaleY(1); }
+}
+
 /* Heatmap bar animation */
 @keyframes barGrow {
   from { transform: scaleX(0); }
