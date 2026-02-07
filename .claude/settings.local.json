@@ -9,7 +9,9 @@
       "Bash(python create_test_image.py:*)",
       "Bash(pip install:*)",
       "Bash(python:*)",
-      "WebFetch(domain:openrouter.ai)"
+      "WebFetch(domain:openrouter.ai)",
+      "Bash(docker ps:*)",
+      "Bash(docker exec:*)"
     ]
   }
 }

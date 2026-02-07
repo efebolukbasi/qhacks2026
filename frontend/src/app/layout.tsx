@@ -1,12 +1,6 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "ChalkBoard Live",
@@ -20,29 +14,37 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} antialiased`}>
-        <header className="sticky top-0 z-50 bg-stone-900 text-white shadow-lg">
-          <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-            <Link href="/" className="text-xl font-bold tracking-tight">
-              ChalkBoard <span className="text-yellow-400">Live</span>
+      <body className="antialiased">
+        <header className="sticky top-0 z-50 border-b border-rule bg-bg/90 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-3.5">
+            <Link href="/" className="flex items-baseline gap-2 no-underline">
+              <span className="font-display text-[22px] italic tracking-tight text-on-dark">
+                ChalkBoard
+              </span>
+              <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.25em] text-cinnabar">
+                live
+              </span>
             </Link>
-            <nav className="flex gap-4 text-sm font-medium">
+
+            <nav className="flex items-center font-mono text-[11px] tracking-wide">
               <Link
                 href="/"
-                className="rounded-md px-3 py-1.5 transition-colors hover:bg-stone-700"
+                className="border-b border-transparent px-3 py-1 text-graphite transition-colors duration-200 hover:border-on-dark-dim/30 hover:text-on-dark"
               >
-                Student View
+                notes
               </Link>
+              <span className="px-1.5 text-rule select-none">/</span>
               <Link
                 href="/professor"
-                className="rounded-md px-3 py-1.5 transition-colors hover:bg-stone-700"
+                className="border-b border-transparent px-3 py-1 text-graphite transition-colors duration-200 hover:border-on-dark-dim/30 hover:text-on-dark"
               >
-                Professor View
+                dashboard
               </Link>
             </nav>
           </div>
         </header>
-        <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+
+        <main className="mx-auto max-w-4xl px-6 py-10">{children}</main>
       </body>
     </html>
   );

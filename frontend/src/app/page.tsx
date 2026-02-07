@@ -31,7 +31,6 @@ export default function StudentPage() {
       if (res.ok) {
         const data: NoteSection[] = await res.json();
         setNotes(data);
-        // Track initial IDs so we don't animate them
         prevNoteIdsRef.current = new Set(data.map((n) => n.section_id));
       }
     } catch {
@@ -56,9 +55,7 @@ export default function StudentPage() {
 
       if (added.size > 0) {
         setNewSectionIds(added);
-        // Clear the "newly added" animation after it plays
         setTimeout(() => setNewSectionIds(new Set()), 1200);
-        // Scroll new content into view
         setTimeout(() => {
           bottomRef.current?.scrollIntoView({ behavior: "smooth" });
         }, 100);
@@ -117,36 +114,27 @@ export default function StudentPage() {
   return (
     <div className="mx-auto max-w-3xl">
       {notes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-stone-300 py-24 text-stone-400">
-          <svg
-            className="mb-3 h-10 w-10"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"
-            />
-          </svg>
-          <p className="text-lg font-medium">Waiting for lecture to begin...</p>
-          <p className="text-sm">Notes will appear here in real time</p>
+        /* Empty state — minimal, warm */
+        <div className="py-32 text-center">
+          <p className="font-display text-3xl italic text-on-dark-dim/40">
+            Awaiting lecture&hellip;
+          </p>
+          <p className="mt-4 font-mono text-[11px] text-graphite/50">
+            Notes will appear as the professor writes on the board
+          </p>
         </div>
       ) : (
-        <div className="rounded-xl border border-stone-200 bg-white px-8 py-10 shadow-sm sm:px-12 sm:py-12">
-          {/* Document header */}
-          <header className="mb-8 text-center">
-            <h1
-              className="text-2xl font-bold tracking-tight sm:text-3xl"
-              style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
-            >
+        /* The paper page — cream document on dark desk */
+        <div className="paper-page px-10 py-12 sm:px-14 sm:py-14">
+          {/* Document header — centered, editorial */}
+          <header className="mb-10 text-center">
+            <h1 className="font-display text-[2rem] font-semibold italic tracking-tight text-ink sm:text-[2.5rem]">
               Lecture Notes
             </h1>
-            <div className="mx-auto mt-2 h-px w-32 bg-stone-300" />
-            <p className="mt-3 text-xs text-stone-400 uppercase tracking-widest">
-              Live &middot; {new Date().toLocaleDateString("en-US", {
+            <div className="mx-auto mt-3 h-px w-20 bg-ink/10" />
+            <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-mid/60">
+              Live &middot;{" "}
+              {new Date().toLocaleDateString("en-US", {
                 weekday: "long",
                 year: "numeric",
                 month: "long",
@@ -164,7 +152,6 @@ export default function StudentPage() {
 
               return (
                 <div key={note.section_id}>
-                  {/* Subtle divider between sections (not before first) */}
                   {idx > 0 && shouldShowDivider(notes[idx - 1], note) && (
                     <div className="section-divider" />
                   )}
@@ -175,14 +162,14 @@ export default function StudentPage() {
                       isHighlighted ? "highlighted" : ""
                     } ${isNew ? "newly-added" : ""}`}
                   >
-                    {/* Highlight badge — floats to the right */}
+                    {/* Flag count — appears in margin on hover */}
                     {note.highlight_count > 0 && (
-                      <span className="absolute -right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-400 text-[10px] font-bold text-stone-900 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="absolute -right-2 top-1.5 font-display text-sm font-semibold text-cinnabar opacity-0 transition-opacity group-hover:opacity-100">
                         {note.highlight_count}
                       </span>
                     )}
 
-                    {/* Render content based on type */}
+                    {/* Render by type */}
                     {note.type === "diagram" ? (
                       <figure className="my-4">
                         {note.image_url ? (
@@ -190,30 +177,30 @@ export default function StudentPage() {
                             <img
                               src={`${BACKEND_URL}${note.image_url}`}
                               alt={note.caption || "Generated diagram"}
-                              className="w-full rounded border border-stone-200 bg-white"
+                              className="w-full border border-ink/5"
                             />
                           </div>
                         ) : (
                           <div
-                            className="mx-auto max-w-md rounded border border-stone-200 bg-white p-6 text-stone-800 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:w-full"
+                            className="mx-auto max-w-md border border-ink/5 p-6 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:w-full"
                             dangerouslySetInnerHTML={{ __html: note.content }}
                           />
                         )}
                         {note.caption && (
-                          <figcaption className="mt-2 text-center text-sm italic text-stone-500">
+                          <figcaption className="mt-2 text-center font-mono text-[11px] italic text-ink-mid">
                             {note.caption}
                           </figcaption>
                         )}
                       </figure>
                     ) : note.type === "definition" ? (
-                      <div className="my-3 rounded-lg border-l-4 border-blue-400 bg-blue-50/50 py-2 pl-4 pr-2">
-                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-blue-600">
+                      <div className="def-callout">
+                        <p className="mb-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.15em] text-copper">
                           Definition
                         </p>
                         <LatexContent text={note.content} />
                       </div>
                     ) : note.type === "equation" ? (
-                      <div className="my-3">
+                      <div className="eq-display">
                         <LatexContent text={note.content} />
                       </div>
                     ) : (
@@ -222,34 +209,39 @@ export default function StudentPage() {
                       </div>
                     )}
 
-                    {/* Expand: comment / highlight bar */}
+                    {/* Annotation prompt — expands inline */}
                     {isExpanded && (
                       <div
-                        className="mt-2 mb-1 flex gap-2 rounded-lg border border-stone-200 bg-stone-50 p-2"
+                        className="mt-3 mb-1 border-t border-ink/8 pt-3"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <input
-                          type="text"
-                          value={commentText}
-                          onChange={(e) => setCommentText(e.target.value)}
-                          placeholder="Leave a question (optional)..."
-                          className="flex-1 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400"
-                          style={{ fontFamily: "var(--font-geist-sans), Arial, sans-serif" }}
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter")
-                              handleHighlight(note.section_id);
-                            if (e.key === "Escape") setExpandedId(null);
-                          }}
-                        />
-                        <button
-                          onClick={() => handleHighlight(note.section_id)}
-                          disabled={sending}
-                          className="rounded-md bg-yellow-400 px-3 py-1.5 text-xs font-semibold text-stone-900 transition-colors hover:bg-yellow-500"
-                          style={{ fontFamily: "var(--font-geist-sans), Arial, sans-serif" }}
-                        >
-                          {commentText.trim() ? "Send" : "Highlight"}
-                        </button>
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-display text-sm italic text-cinnabar/50 select-none">
+                            annotate
+                          </span>
+                          <div className="flex-1 border-b border-ink/15">
+                            <input
+                              type="text"
+                              value={commentText}
+                              onChange={(e) => setCommentText(e.target.value)}
+                              placeholder="leave a question (optional)"
+                              className="annotation-field w-full bg-transparent py-1.5 text-[12px] text-ink outline-none"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter")
+                                  handleHighlight(note.section_id);
+                                if (e.key === "Escape") setExpandedId(null);
+                              }}
+                            />
+                          </div>
+                          <button
+                            onClick={() => handleHighlight(note.section_id)}
+                            disabled={sending}
+                            className="border border-cinnabar/25 px-3.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-cinnabar transition-all hover:border-cinnabar/50 hover:bg-cinnabar/5 disabled:opacity-30"
+                          >
+                            {commentText.trim() ? "submit" : "flag"}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -259,12 +251,9 @@ export default function StudentPage() {
             <div ref={bottomRef} />
           </article>
 
-          {/* Tip at the bottom */}
-          <p
-            className="mt-8 border-t border-stone-100 pt-4 text-center text-xs text-stone-400"
-            style={{ fontFamily: "var(--font-geist-sans), Arial, sans-serif" }}
-          >
-            Click any section to highlight it or leave a question for your professor
+          {/* Footer hint */}
+          <p className="mt-10 border-t border-ink/6 pt-4 text-center font-mono text-[10px] text-ink-mid/40">
+            Click any section to flag confusion or annotate with a question
           </p>
         </div>
       )}
@@ -275,7 +264,6 @@ export default function StudentPage() {
 /** Show a divider when the section type changes, or between unrelated blocks */
 function shouldShowDivider(prev: NoteSection, curr: NoteSection): boolean {
   if (prev.type !== curr.type) return true;
-  // Always separate diagrams
   if (prev.type === "diagram" || curr.type === "diagram") return true;
   return false;
 }
