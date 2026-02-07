@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
 import { getSupabase, BACKEND_URL } from "@/lib/supabase";
 import LatexContent from "@/components/LatexContent";
 import VoiceButton from "@/components/VoiceButton";
+import DiagramViewer from "@/components/DiagramViewer";
 
 interface NoteSection {
   section_id: string;
@@ -239,25 +239,16 @@ export default function StudentRoomPage() {
                     {note.type === "diagram" ? (
                       <figure className="my-4">
                         {note.image_url ? (
-                          <div className="relative mx-auto max-w-md aspect-video">
-                            <Image
-                              src={note.image_url || ""}
-                              alt={note.caption || "Diagram"}
-                              fill
-                              className="rounded border border-ink/10 object-contain"
-                              unoptimized
-                            />
-                          </div>
+                          <DiagramViewer
+                            src={note.image_url}
+                            alt={note.caption || "Diagram"}
+                            caption={note.caption}
+                          />
                         ) : (
                           <div
                             className="mx-auto max-w-md rounded border border-ink/10 p-6"
                             dangerouslySetInnerHTML={{ __html: note.content }}
                           />
-                        )}
-                        {note.caption && (
-                          <figcaption className="mt-2 text-center font-mono text-[10px] italic text-ink-mid">
-                            {note.caption}
-                          </figcaption>
                         )}
                       </figure>
                     ) : note.type === "definition" ? (
