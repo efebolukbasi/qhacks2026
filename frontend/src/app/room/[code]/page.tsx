@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { getSupabase, BACKEND_URL } from "@/lib/supabase";
 import LatexContent from "@/components/LatexContent";
+import VoiceButton from "@/components/VoiceButton";
+import DiagramViewer from "@/components/DiagramViewer";
 import StreamingLatexContent from "@/components/StreamingLatexContent";
 
 interface NoteSection {
@@ -445,6 +447,13 @@ export default function StudentRoomPage() {
                     )}
 
                     {renderContent()}
+
+                    {/* Section toolbar — voice, revealed on hover */}
+                    {note.type !== "diagram" && (
+                      <div className="section-toolbar">
+                        <VoiceButton text={note.content} />
+                      </div>
+                    )}
 
                     {/* Inline comments for this section */}
                     {sectionComments.length > 0 && (
