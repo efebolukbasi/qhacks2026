@@ -9,12 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
     "@types/katex": "^0.16.8",
     "katex": "^0.16.28",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "socket.io-client": "^4.8.3"
+    "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

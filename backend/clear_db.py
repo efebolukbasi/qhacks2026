@@ -16,7 +16,7 @@ if not dsn:
 
 conn = psycopg.connect(dsn, sslmode="require")
 with conn.cursor() as cur:
-    cur.execute("TRUNCATE comments, highlights, lecture_notes RESTART IDENTITY CASCADE")
+    cur.execute("TRUNCATE comments, highlights, lecture_notes, rooms RESTART IDENTITY CASCADE")
 conn.commit()
 conn.close()
 print("Database cleared — all rows removed, sequences reset.")

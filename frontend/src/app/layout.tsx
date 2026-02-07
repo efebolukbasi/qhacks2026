@@ -31,14 +31,14 @@ export default function RootLayout({
                 href="/"
                 className="border-b border-transparent px-3 py-1 text-graphite transition-colors duration-200 hover:border-on-dark-dim/30 hover:text-on-dark"
               >
-                notes
+                join
               </Link>
               <span className="px-1.5 text-rule select-none">/</span>
               <Link
                 href="/professor"
                 className="border-b border-transparent px-3 py-1 text-graphite transition-colors duration-200 hover:border-on-dark-dim/30 hover:text-on-dark"
               >
-                dashboard
+                professor
               </Link>
             </nav>
           </div>
