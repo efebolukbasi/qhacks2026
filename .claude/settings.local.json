@@ -8,7 +8,8 @@
       "Bash(npx next build:*)",
       "Bash(python create_test_image.py:*)",
       "Bash(pip install:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "WebFetch(domain:openrouter.ai)"
     ]
   }
 }

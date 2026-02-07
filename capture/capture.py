@@ -15,8 +15,10 @@ import json
 import os
 import sys
 import time
+from datetime import datetime
 
 import requests
+from PIL import Image
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -39,19 +41,40 @@ def load_config():
     return config
 
 
-def grab_frame_mjpeg(stream):
-    """Read one JPEG frame from an MJPEG stream."""
+def grab_frame_mjpeg(stream, num_frames=10):
+    """Read multiple JPEG frames from an MJPEG stream, return the last complete one.
+
+    The first frame is often partial/blurry. Reading several frames and keeping
+    the last gives a much sharper result (matches what a browser displays).
+    """
     buf = b""
-    while True:
+    last_frame = None
+    frames_read = 0
+
+    while frames_read < num_frames:
         chunk = stream.read(4096)
         if not chunk:
-            return None
+            break
         buf += chunk
-        # JPEG starts with FF D8, ends with FF D9
-        start = buf.find(b"\xff\xd8")
-        end = buf.find(b"\xff\xd9", start + 2) if start != -1 else -1
-        if start != -1 and end != -1:
-            return buf[start : end + 2]
+
+        while True:
+            start = buf.find(b"\xff\xd8")
+            if start == -1:
+                buf = b""
+                break
+            end = buf.find(b"\xff\xd9", start + 2)
+            if end == -1:
+                # Keep from start marker onward, discard earlier bytes
+                buf = buf[start:]
+                break
+            # Complete frame found
+            last_frame = buf[start : end + 2]
+            frames_read += 1
+            buf = buf[end + 2:]
+            if frames_read >= num_frames:
+                break
+
+    return last_frame
 
 
 def grab_snapshot(camera_url, auth=None):
@@ -62,17 +85,14 @@ def grab_snapshot(camera_url, auth=None):
         content_type = resp.headers.get("content-type", "")
 
         if "multipart" in content_type:
-            # MJPEG stream - read one frame
             frame = grab_frame_mjpeg(resp.raw)
             resp.close()
             return frame
         elif "image" in content_type:
-            # Direct JPEG snapshot
             data = resp.content
             resp.close()
             return data
         else:
-            # Try reading as MJPEG anyway
             frame = grab_frame_mjpeg(resp.raw)
             resp.close()
             return frame
@@ -81,11 +101,20 @@ def grab_snapshot(camera_url, auth=None):
         return None
 
 
+def rotate_image(jpeg_bytes):
+    """Rotate image 90 degrees clockwise."""
+    img = Image.open(io.BytesIO(jpeg_bytes))
+    rotated = img.rotate(-90, expand=True)
+    buf = io.BytesIO()
+    rotated.save(buf, format="JPEG", quality=90)
+    return buf.getvalue()
+
+
 def send_frame(backend_url, jpeg_bytes):
     url = f"{backend_url.rstrip('/')}/upload-image"
     try:
         files = {"file": ("frame.jpg", io.BytesIO(jpeg_bytes), "image/jpeg")}
-        resp = requests.post(url, files=files, timeout=30)
+        resp = requests.post(url, files=files, timeout=60)
         print(f"[{resp.status_code}] {resp.text[:200]}")
         return resp
     except requests.ConnectionError:
@@ -106,7 +135,6 @@ def main():
     username = config.get("camera_username")
     password = config.get("camera_password")
     auth = (username, password) if username else None
-
     print(f"Camera URL:  {camera_url}")
     print(f"Backend URL: {backend_url}")
     print(f"Interval:    {interval}s")
@@ -121,6 +149,11 @@ def main():
     else:
         print("WARNING: Could not grab test frame. Will keep retrying...")
 
+    # Save captures locally for review
+    captures_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "captures")
+    os.makedirs(captures_dir, exist_ok=True)
+    print(f"Saving captures to: {captures_dir}")
+
     print("Press Ctrl+C to stop.\n")
 
     try:
@@ -130,6 +163,16 @@ def main():
                 print("No frame captured, retrying in 3s...")
                 time.sleep(3)
                 continue
+
+            # Rotate 90 degrees clockwise
+            jpeg = rotate_image(jpeg)
+
+            # Save frame locally
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filepath = os.path.join(captures_dir, f"frame_{timestamp}.jpg")
+            with open(filepath, "wb") as f:
+                f.write(jpeg)
+            print(f"Saved: {filepath}")
 
             print(f"Captured frame ({len(jpeg)} bytes), sending to backend...")
             send_frame(backend_url, jpeg)

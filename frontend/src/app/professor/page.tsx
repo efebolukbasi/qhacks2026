@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getSocket } from "@/lib/socket";
+import LatexContent from "@/components/LatexContent";
 
 interface NoteSection {
   section_id: string;
-  type: "definition" | "equation" | "step" | "note";
+  type: "definition" | "equation" | "step" | "note" | "diagram";
   content: string;
+  caption?: string;
   highlight_count: number;
 }
 
@@ -25,6 +27,7 @@ const TYPE_COLORS: Record<NoteSection["type"], string> = {
   equation: "bg-purple-100 text-purple-800",
   step: "bg-green-100 text-green-800",
   note: "bg-stone-100 text-stone-700",
+  diagram: "bg-teal-100 text-teal-800",
 };
 
 export default function ProfessorPage() {
@@ -63,7 +66,6 @@ export default function ProfessorPage() {
               : n
           )
         );
-        // Re-fetch comments to get any new ones
         fetch(`${BACKEND_URL}/comments`)
           .then((r) => (r.ok ? r.json() : []))
           .then(setComments)
@@ -108,20 +110,28 @@ export default function ProfessorPage() {
                 key={note.section_id}
                 className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-3 shadow-sm"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-sm font-bold text-stone-500">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-100 text-sm font-bold text-stone-500">
                   {i + 1}
                 </span>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <span
                     className={`mr-2 inline-block rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${TYPE_COLORS[note.type]}`}
                   >
                     {note.type}
                   </span>
-                  <span
-                    className={`text-sm text-stone-700 ${note.type === "equation" ? "font-mono" : ""}`}
-                  >
-                    {note.content}
-                  </span>
+                  {note.type === "diagram" ? (
+                    <span className="text-sm italic text-stone-500">
+                      {note.caption || "Diagram"}
+                    </span>
+                  ) : (
+                    <div className="text-sm text-stone-700">
+                      <LatexContent text={
+                        note.content.length > 120
+                          ? note.content.slice(0, 120) + "..."
+                          : note.content
+                      } />
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <span
@@ -168,9 +178,11 @@ export default function ProfessorPage() {
                       >
                         {relatedNote.type}
                       </span>
-                      {relatedNote.content.length > 80
-                        ? relatedNote.content.slice(0, 80) + "..."
-                        : relatedNote.content}
+                      {relatedNote.type === "diagram"
+                        ? (relatedNote.caption || "Diagram")
+                        : relatedNote.content.length > 80
+                          ? relatedNote.content.slice(0, 80) + "..."
+                          : relatedNote.content}
                     </p>
                   )}
                   <p className="mt-1 text-xs text-stone-300">

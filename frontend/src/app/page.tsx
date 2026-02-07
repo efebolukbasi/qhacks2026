@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getSocket } from "@/lib/socket";
+import LatexContent from "@/components/LatexContent";
 
 interface NoteSection {
   section_id: string;
-  type: "definition" | "equation" | "step" | "note";
+  type: "definition" | "equation" | "step" | "note" | "diagram";
   content: string;
+  caption?: string;
   highlight_count: number;
 }
 
@@ -18,6 +20,7 @@ const TYPE_COLORS: Record<NoteSection["type"], string> = {
   equation: "bg-purple-100 text-purple-800",
   step: "bg-green-100 text-green-800",
   note: "bg-stone-100 text-stone-700",
+  diagram: "bg-teal-100 text-teal-800",
 };
 
 function highlightBg(count: number): string {
@@ -130,17 +133,30 @@ export default function StudentPage() {
               className={`cursor-pointer rounded-xl border border-stone-200 p-4 shadow-sm transition-colors duration-300 hover:shadow-md ${highlightBg(note.highlight_count)}`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <span
                     className={`mb-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${TYPE_COLORS[note.type]}`}
                   >
                     {note.type}
                   </span>
-                  <p
-                    className={`mt-1 leading-relaxed text-stone-800 ${note.type === "equation" ? "font-mono text-lg" : ""}`}
-                  >
-                    {note.content}
-                  </p>
+
+                  {note.type === "diagram" ? (
+                    <div className="mt-2">
+                      <div
+                        className="mx-auto max-w-lg rounded-lg border border-stone-200 bg-white p-6 text-stone-800 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:w-full"
+                        dangerouslySetInnerHTML={{ __html: note.content }}
+                      />
+                      {note.caption && (
+                        <p className="mt-2 text-center text-sm italic text-stone-500">
+                          {note.caption}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-stone-800">
+                      <LatexContent text={note.content} />
+                    </div>
+                  )}
                 </div>
                 {note.highlight_count > 0 && (
                   <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-yellow-400 text-xs font-bold text-stone-900">
