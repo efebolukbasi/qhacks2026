@@ -248,6 +248,8 @@ def send_image_to_gemini(image_path: str, generate_diagrams: bool = True) -> lis
     ext = image_path.lower().rsplit(".", 1)[-1] if "." in image_path else "jpeg"
     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(ext, "image/jpeg")
 
+    logger.info(f"Sending image to OpenRouter model={OPENROUTER_MODEL}, mime={mime}, base64_len={len(image_data)}")
+
     resp = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
         headers={
@@ -268,6 +270,9 @@ def send_image_to_gemini(image_path: str, generate_diagrams: bool = True) -> lis
         },
         timeout=90,
     )
+
+    if not resp.ok:
+        logger.error(f"OpenRouter responded {resp.status_code}: {resp.text[:1000]}")
     resp.raise_for_status()
 
     text = resp.json()["choices"][0]["message"]["content"].strip()
