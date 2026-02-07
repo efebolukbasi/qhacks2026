@@ -290,6 +290,17 @@ export default function StudentRoomPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
+      {/* Back link */}
+      <button
+        onClick={() => router.push("/rooms")}
+        className="mb-4 flex items-center gap-1.5 font-mono text-[11px] text-on-dark-dim transition-colors hover:text-on-dark"
+      >
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+        All Rooms
+      </button>
+
       {/* Room header */}
       <div className="mb-6 flex items-baseline justify-between">
         <div>
