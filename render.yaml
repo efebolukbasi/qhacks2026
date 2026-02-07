@@ -14,5 +14,5 @@ services:
     runtime: node
     plan: free
     rootDir: frontend
-    buildCommand: pnpm install && pnpm build
-    startCommand: node .next/standalone/server.js
+    buildCommand: pnpm install && pnpm build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static
+    startCommand: HOSTNAME=0.0.0.0 node .next/standalone/server.js
