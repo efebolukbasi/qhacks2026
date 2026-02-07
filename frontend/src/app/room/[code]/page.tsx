@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import { getSupabase, BACKEND_URL } from "@/lib/supabase";
 import LatexContent from "@/components/LatexContent";
 
@@ -30,8 +31,8 @@ export default function StudentRoomPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [sending, setSending] = useState(false);
-  const [newSectionIds, setNewSectionIds] = useState<Set<string>>(new Set());
   const prevNoteIdsRef = useRef<Set<string>>(new Set());
+  const notesRef = useRef<NoteSection[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Fetch room info
@@ -76,17 +77,19 @@ export default function StudentRoomPage() {
         highlight_count: hlMap.get(row.section_id as string) || 0,
       }));
       setNotes(mapped);
+      notesRef.current = mapped;
       prevNoteIdsRef.current = new Set(mapped.map((n) => n.section_id));
     }
   }, [room]);
 
-  useEffect(() => {
-    fetchNotes();
-  }, [fetchNotes]);
-
-  // Supabase Realtime subscription
+  // Initial fetch + Supabase Realtime subscription
   useEffect(() => {
     if (!room) return;
+
+    const load = async () => {
+      await fetchNotes();
+    };
+    load();
 
     const sb = getSupabase();
     const channel = sb
@@ -100,12 +103,7 @@ export default function StudentRoomPage() {
           filter: `room_id=eq.${room.id}`,
         },
         () => {
-          // Refetch all notes on any change
           fetchNotes().then(() => {
-            // Detect new sections for animation
-            const currentIds = new Set(
-              notes.map((n) => n.section_id)
-            );
             // Scroll to bottom when new content arrives
             setTimeout(() => {
               bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -245,11 +243,13 @@ export default function StudentRoomPage() {
                     {note.type === "diagram" ? (
                       <figure className="my-4">
                         {note.image_url ? (
-                          <div className="mx-auto max-w-md">
-                            <img
+                          <div className="relative mx-auto max-w-md aspect-video">
+                            <Image
                               src={note.image_url || ""}
                               alt={note.caption || "Diagram"}
-                              className="w-full rounded border border-ink/10"
+                              fill
+                              className="rounded border border-ink/10 object-contain"
+                              unoptimized
                             />
                           </div>
                         ) : (
