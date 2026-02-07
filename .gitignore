@@ -1,0 +1,12 @@
+node_modules/
+.next/
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
+*.jpg
+*.jpeg
+*.png
+!capture/test_chalkboard.jpg
+uploads/
