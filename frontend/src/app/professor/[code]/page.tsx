@@ -23,6 +23,7 @@ interface Comment {
   id: number;
   section_id: string;
   comment: string;
+  highlighted_text?: string;
   created_at: string;
 }
 
@@ -46,6 +47,7 @@ export default function ProfessorRoomPage() {
   const [lastCapture, setLastCapture] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [captureCount, setCaptureCount] = useState(0);
+  const [expandedEngagement, setExpandedEngagement] = useState<string | null>(null);
 
   // Load room
   useEffect(() => {
@@ -373,39 +375,60 @@ export default function ProfessorRoomPage() {
                 {sortedByHighlights.slice(0, 8).map((note, i) => {
                   const maxCount = sortedByHighlights[0]?.highlight_count || 1;
                   const barWidth = maxCount > 0 ? (note.highlight_count / maxCount) * 100 : 0;
+                  const isLong = note.content.length > 80;
+                  const isOpen = expandedEngagement === note.section_id;
                   return (
                     <div
                       key={note.section_id}
-                      className="relative flex items-center gap-2 rounded p-2"
+                      className={`relative rounded p-2 transition-all ${
+                        isLong ? "cursor-pointer" : ""
+                      }`}
+                      onClick={() =>
+                        isLong &&
+                        setExpandedEngagement(
+                          isOpen ? null : note.section_id
+                        )
+                      }
                     >
                       {/* Background bar */}
                       <div
                         className="bar-animate absolute inset-0 rounded bg-cinnabar/8"
                         style={{ width: `${barWidth}%` }}
                       />
-                      <span className="relative z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bg-raised font-mono text-[9px] font-bold text-on-dark-dim">
-                        {i + 1}
-                      </span>
-                      <div className="relative z-10 flex-1 min-w-0">
-                        <div className="latex-truncate text-xs text-on-dark">
-                          <LatexContent
-                            text={
-                              note.content.length > 80
-                                ? note.content.slice(0, 80) + "..."
-                                : note.content
-                            }
-                          />
+                      <div className="relative z-10 flex items-start gap-2">
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bg-raised font-mono text-[9px] font-bold text-on-dark-dim">
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className="text-xs text-on-dark overflow-hidden transition-[max-height] duration-300 ease-in-out"
+                            style={{
+                              maxHeight: isOpen ? "500px" : "2.8em",
+                            }}
+                          >
+                            <LatexContent text={note.content} />
+                          </div>
+                          {!isOpen && isLong && (
+                            <span className="text-on-dark-dim/60 text-[11px]">…</span>
+                          )}
                         </div>
+                        <span
+                          className={`mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-bold ${
+                            note.highlight_count > 0
+                              ? "bg-cinnabar text-cream"
+                              : "bg-bg-raised text-on-dark-dim"
+                          }`}
+                        >
+                          {note.highlight_count}
+                        </span>
+                        {isLong && (
+                          <span className={`text-[10px] text-on-dark-dim/50 transition-transform duration-200 ${
+                            isOpen ? "rotate-180" : ""
+                          }`}>
+                            ▼
+                          </span>
+                        )}
                       </div>
-                      <span
-                        className={`relative z-10 flex h-6 min-w-6 items-center justify-center rounded-full font-mono text-[10px] font-bold ${
-                          note.highlight_count > 0
-                            ? "bg-cinnabar text-cream"
-                            : "bg-bg-raised text-on-dark-dim"
-                        }`}
-                      >
-                        {note.highlight_count}
-                      </span>
                     </div>
                   );
                 })}
@@ -428,10 +451,17 @@ export default function ProfessorRoomPage() {
                   const related = noteMap.get(c.section_id);
                   return (
                     <div key={c.id} className="border-b border-rule pb-3 last:border-0">
-                      <p className="text-sm text-cream">
-                        &ldquo;{c.comment}&rdquo;
-                      </p>
-                      {related && (
+                      {c.highlighted_text && (
+                        <p className="mb-1 rounded bg-lamplight/10 px-2 py-1 font-mono text-[10px] italic text-lamplight line-clamp-2">
+                          &ldquo;{c.highlighted_text}&rdquo;
+                        </p>
+                      )}
+                      {c.comment && (
+                        <p className="text-sm text-cream">
+                          &ldquo;{c.comment}&rdquo;
+                        </p>
+                      )}
+                      {!c.highlighted_text && related && (
                         <p className="mt-1 font-mono text-[9px] text-on-dark-dim">
                           re: {related.content.slice(0, 60)}...
                         </p>

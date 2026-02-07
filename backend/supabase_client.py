@@ -160,14 +160,17 @@ def increment_highlight(room_id: str, section_id: str) -> int:
     return result.data if isinstance(result.data, int) else 1
 
 
-def add_comment(room_id: str, section_id: str, comment: str) -> None:
-    """Add a student comment/question."""
+def add_comment(room_id: str, section_id: str, comment: str, highlighted_text: str | None = None) -> None:
+    """Add a student comment/question, optionally with the highlighted text snippet."""
     sb = get_client()
-    sb.table("comments").insert({
+    row = {
         "room_id": room_id,
         "section_id": section_id,
         "comment": comment,
-    }).execute()
+    }
+    if highlighted_text:
+        row["highlighted_text"] = highlighted_text
+    sb.table("comments").insert(row).execute()
 
 
 def get_comments_for_room(room_id: str) -> list[dict]:

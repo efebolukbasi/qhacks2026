@@ -167,15 +167,6 @@ body::after {
 .latex-truncate {
   max-height: 1.6em;
   overflow: hidden;
-  position: relative;
-}
-.latex-truncate::after {
-  content: '\2026';
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  padding-left: 1em;
-  background: linear-gradient(to right, transparent, var(--bg) 40%);
 }
 
 /* Annotation input */

@@ -67,10 +67,25 @@ with conn.cursor() as cur:
             room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
             section_id TEXT,
             comment TEXT,
+            highlighted_text TEXT,
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
     """)
     print("  ✓ comments")
+
+    # --- Migration: add highlighted_text column if missing ---
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'comments' AND column_name = 'highlighted_text'
+            ) THEN
+                ALTER TABLE comments ADD COLUMN highlighted_text TEXT;
+            END IF;
+        END $$;
+    """)
+    print("  ✓ comments.highlighted_text column")
 
     # --- RPC: increment highlight count atomically ---
     cur.execute("""

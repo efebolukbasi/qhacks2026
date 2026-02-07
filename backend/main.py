@@ -168,12 +168,13 @@ async def api_highlight(code: str, body: dict):
 
     section_id = body.get("section_id")
     comment = body.get("comment")
+    highlighted_text = body.get("highlighted_text")
     if not section_id:
         raise HTTPException(400, "section_id is required")
 
     count = increment_highlight(room["id"], section_id)
 
     if comment:
-        add_comment(room["id"], section_id, comment)
+        add_comment(room["id"], section_id, comment, highlighted_text)
 
     return {"section_id": section_id, "highlight_count": count}

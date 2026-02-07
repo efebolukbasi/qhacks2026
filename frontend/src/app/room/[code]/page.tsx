@@ -21,6 +21,20 @@ interface Room {
   name: string | null;
 }
 
+interface SelectionInfo {
+  sectionId: string;
+  text: string;
+  rect: { top: number; left: number; width: number };
+}
+
+interface Comment {
+  id: number;
+  section_id: string;
+  comment: string;
+  highlighted_text?: string;
+  created_at: string;
+}
+
 export default function StudentRoomPage() {
   const params = useParams();
   const router = useRouter();
@@ -28,12 +42,15 @@ export default function StudentRoomPage() {
 
   const [room, setRoom] = useState<Room | null>(null);
   const [notes, setNotes] = useState<NoteSection[]>([]);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [sending, setSending] = useState(false);
+  const [selection, setSelection] = useState<SelectionInfo | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const prevNoteIdsRef = useRef<Set<string>>(new Set());
   const notesRef = useRef<NoteSection[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
 
   // Fetch room info
   useEffect(() => {
@@ -58,11 +75,16 @@ export default function StudentRoomPage() {
     if (!room) return;
     const sb = getSupabase();
 
-    // Fetch notes and highlights separately (no FK between tables)
-    const [notesRes, hlRes] = await Promise.all([
+    // Fetch notes, highlights, and comments
+    const [notesRes, hlRes, commentsRes] = await Promise.all([
       sb.from("lecture_notes").select("*").eq("room_id", room.id).order("id"),
       sb.from("highlights").select("section_id, highlight_count").eq("room_id", room.id),
+      sb.from("comments").select("*").eq("room_id", room.id).order("created_at"),
     ]);
+
+    if (commentsRes.data) {
+      setComments(commentsRes.data as Comment[]);
+    }
 
     if (notesRes.data) {
       const hlMap = new Map(
@@ -121,6 +143,16 @@ export default function StudentRoomPage() {
         },
         () => fetchNotes()
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "comments",
+          filter: `room_id=eq.${room.id}`,
+        },
+        () => fetchNotes()
+      )
       .subscribe();
 
     return () => {
@@ -128,33 +160,89 @@ export default function StudentRoomPage() {
     };
   }, [room, fetchNotes]);
 
-  const handleHighlight = async (sectionId: string) => {
-    if (expandedId === sectionId && commentText.trim()) {
-      setSending(true);
-      await fetch(`${BACKEND_URL}/rooms/${code}/highlight`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          section_id: sectionId,
-          comment: commentText.trim(),
-        }),
+  // Listen for text selection inside the notes article
+  useEffect(() => {
+    const handleMouseUp = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        return;
+      }
+
+      const selectedText = sel.toString().trim();
+      if (!selectedText) return;
+
+      // Walk up from the selection anchor to find the section-block wrapper
+      let node: Node | null = sel.anchorNode;
+      let sectionEl: HTMLElement | null = null;
+      while (node) {
+        if (node instanceof HTMLElement && node.dataset.sectionId) {
+          sectionEl = node;
+          break;
+        }
+        node = node.parentNode;
+      }
+      if (!sectionEl) return;
+
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const articleEl = articleRef.current;
+      const articleRect = articleEl?.getBoundingClientRect();
+
+      setSelection({
+        sectionId: sectionEl.dataset.sectionId!,
+        text: selectedText,
+        rect: {
+          top: rect.bottom - (articleRect?.top ?? 0) + 8,
+          left:
+            rect.left -
+            (articleRect?.left ?? 0) +
+            rect.width / 2,
+          width: rect.width,
+        },
       });
       setCommentText("");
-      setExpandedId(null);
-      setSending(false);
-      fetchNotes();
-    } else if (expandedId === sectionId) {
-      await fetch(`${BACKEND_URL}/rooms/${code}/highlight`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ section_id: sectionId }),
-      });
-      setExpandedId(null);
-      fetchNotes();
-    } else {
-      setExpandedId(sectionId);
-      setCommentText("");
-    }
+    };
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node)
+      ) {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) {
+          setSelection(null);
+          setCommentText("");
+        }
+      }
+    };
+
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleSubmitComment = async () => {
+    if (!selection) return;
+    setSending(true);
+
+    await fetch(`${BACKEND_URL}/rooms/${code}/highlight`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        section_id: selection.sectionId,
+        highlighted_text: selection.text,
+        comment: commentText.trim() || undefined,
+      }),
+    });
+
+    setCommentText("");
+    setSelection(null);
+    setSending(false);
+    window.getSelection()?.removeAllRanges();
+    fetchNotes();
   };
 
   if (!room) {
@@ -213,10 +301,12 @@ export default function StudentRoomPage() {
           </header>
 
           {/* Flowing document */}
-          <article className="latex-document">
+          <article className="latex-document relative" ref={articleRef}>
             {notes.map((note, idx) => {
               const isHighlighted = note.highlight_count > 0;
-              const isExpanded = expandedId === note.section_id;
+              const sectionComments = comments.filter(
+                (c) => c.section_id === note.section_id
+              );
 
               return (
                 <div key={note.section_id}>
@@ -225,12 +315,8 @@ export default function StudentRoomPage() {
                   )}
 
                   <div
-                    onClick={() =>
-                      expandedId === note.section_id
-                        ? setExpandedId(null)
-                        : (setExpandedId(note.section_id), setCommentText(""))
-                    }
-                    className={`section-block cursor-pointer group ${
+                    data-section-id={note.section_id}
+                    className={`section-block group ${
                       isHighlighted ? "highlighted" : ""
                     }`}
                   >
@@ -281,41 +367,117 @@ export default function StudentRoomPage() {
                       </div>
                     )}
 
-                    {isExpanded && (
-                      <div
-                        className="mt-2 mb-1 flex gap-2 rounded border border-ink/10 bg-cream-dim/50 p-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="text"
-                          value={commentText}
-                          onChange={(e) => setCommentText(e.target.value)}
-                          placeholder="Leave a question..."
-                          className="annotation-field flex-1 rounded border border-ink/10 bg-cream px-3 py-1.5 text-sm text-ink outline-none focus:border-cinnabar/40"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleHighlight(note.section_id);
-                            if (e.key === "Escape") setExpandedId(null);
-                          }}
-                        />
-                        <button
-                          onClick={() => handleHighlight(note.section_id)}
-                          disabled={sending}
-                          className="rounded bg-cinnabar px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-cream transition-colors hover:bg-cinnabar/90 disabled:opacity-40"
-                        >
-                          {commentText.trim() ? "Send" : "Highlight"}
-                        </button>
+                    {/* Inline comments for this section */}
+                    {sectionComments.length > 0 && (
+                      <div className="mt-2 flex flex-col gap-1.5 border-t border-ink/5 pt-2">
+                        {sectionComments.map((c) => (
+                          <div
+                            key={c.id}
+                            className="flex items-start gap-2 rounded bg-ink/[0.03] px-2.5 py-1.5"
+                          >
+                            <span className="mt-0.5 text-[10px] text-cinnabar">💬</span>
+                            <div className="min-w-0 flex-1">
+                              {c.highlighted_text && (
+                                <p className="mb-0.5 text-[11px] font-medium text-lamplight/80">
+                                  &ldquo;{c.highlighted_text.length > 60
+                                    ? c.highlighted_text.slice(0, 60) + "…"
+                                    : c.highlighted_text}&rdquo;
+                                </p>
+                              )}
+                              {c.comment && (
+                                <p className="text-xs text-ink-mid">
+                                  {c.comment}
+                                </p>
+                              )}
+                            </div>
+                            <span className="shrink-0 font-mono text-[8px] text-ink-mid/40">
+                              {new Date(c.created_at).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
                 </div>
               );
             })}
+
+            {/* Selection popover — positioned relative to the article */}
+            {selection && (
+              <div
+                ref={popoverRef}
+                className="absolute z-50 w-72 rounded-lg border border-ink/15 bg-cream shadow-xl"
+                style={{
+                  top: selection.rect.top,
+                  left: Math.max(
+                    0,
+                    Math.min(
+                      selection.rect.left - 144,
+                      (articleRef.current?.clientWidth ?? 600) - 288
+                    )
+                  ),
+                }}
+              >
+                {/* Arrow */}
+                <div
+                  className="absolute -top-1.5 h-3 w-3 rotate-45 border-l border-t border-ink/15 bg-cream"
+                  style={{
+                    left: Math.min(
+                      Math.max(16, selection.rect.left - Math.max(
+                        0,
+                        Math.min(
+                          selection.rect.left - 144,
+                          (articleRef.current?.clientWidth ?? 600) - 288
+                        )
+                      )),
+                      256
+                    ),
+                  }}
+                />
+                <div className="p-3">
+                  {/* Show highlighted excerpt */}
+                  <p className="mb-2 rounded bg-lamplight/15 px-2 py-1 text-xs italic text-ink-mid line-clamp-2">
+                    &ldquo;{selection.text.length > 80
+                      ? selection.text.slice(0, 80) + "…"
+                      : selection.text}&rdquo;
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      placeholder="Ask a question…"
+                      className="annotation-field flex-1 rounded border border-ink/10 bg-white px-2.5 py-1.5 text-sm text-ink outline-none focus:border-cinnabar/40"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSubmitComment();
+                        if (e.key === "Escape") {
+                          setSelection(null);
+                          setCommentText("");
+                          window.getSelection()?.removeAllRanges();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={handleSubmitComment}
+                      disabled={sending}
+                      className="rounded bg-cinnabar px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-cream transition-colors hover:bg-cinnabar/90 disabled:opacity-40"
+                    >
+                      {commentText.trim() ? "Send" : "Flag"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div ref={bottomRef} />
           </article>
 
           <p className="mt-8 border-t border-ink/5 pt-4 text-center font-mono text-[9px] text-ink-mid/60">
-            Click any section to highlight it or leave a question
+            Select text to highlight it or ask a question
           </p>
         </div>
       )}
