@@ -107,4 +107,27 @@ with conn.cursor() as cur:
 
 conn.commit()
 conn.close()
+print("  ✓ Database tables ready")
+
+# --- Create Supabase Storage bucket for diagram images ---
+print("\nSetting up Supabase Storage...")
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+
+if supabase_url and supabase_key:
+    from supabase import create_client
+    sb = create_client(supabase_url, supabase_key)
+    try:
+        sb.storage.create_bucket("diagrams", {"public": True})
+        print("  ✓ 'diagrams' storage bucket created (public)")
+    except Exception as e:
+        if "already exists" in str(e).lower() or "Duplicate" in str(e):
+            print("  ✓ 'diagrams' storage bucket already exists")
+        else:
+            print(f"  ⚠ Could not create storage bucket: {e}")
+            print("    You may need to create it manually in the Supabase dashboard.")
+else:
+    print("  ⚠ SUPABASE_URL / SUPABASE_KEY not set — skipping storage bucket creation.")
+    print("    Create a public 'diagrams' bucket manually in the Supabase dashboard.")
+
 print("\nMigration complete.")

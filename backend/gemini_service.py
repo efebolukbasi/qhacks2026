@@ -3,8 +3,6 @@ import json
 import re
 import base64
 import logging
-import uuid
-from pathlib import Path
 
 import requests
 
@@ -153,27 +151,20 @@ def fix_latex_json(text: str) -> str:
     return ''.join(result)
 
 
-def generate_diagram_image(chalkboard_image_path: str, output_dir: Path) -> str:
+def generate_diagram_image(chalkboard_image_path: str) -> tuple[bytes, str] | None:
     """Enhance a diagram from the chalkboard image using OpenRouter's Nano Banana.
     
-    Args:
-        chalkboard_image_path: Path to the original chalkboard image
-        output_dir: Directory to save the generated image
-        
     Returns:
-        Path to the generated image file
+        (image_bytes, extension) tuple, or None on failure.
     """
-    logger.info(f"Enhancing diagram from chalkboard image...")
+    logger.info("Enhancing diagram from chalkboard image...")
     
-    # Read and encode the original chalkboard image
     with open(chalkboard_image_path, "rb") as f:
         image_data = base64.b64encode(f.read()).decode("utf-8")
     
-    # Determine image MIME type
     ext = chalkboard_image_path.lower().rsplit(".", 1)[-1] if "." in chalkboard_image_path else "jpeg"
     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(ext, "image/jpeg")
     
-    # Simple prompt - let Nano Banana work directly with the image
     enhanced_prompt = """Please clean up and enhance this diagram from a chalkboard photo:
 
 - Enhance clarity and readability
@@ -190,8 +181,8 @@ def generate_diagram_image(chalkboard_image_path: str, output_dir: Path) -> str:
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://github.com/qhacks",  # Optional, for OpenRouter
-                "X-Title": "QHacks Chalkboard Notes",  # Optional, for OpenRouter
+                "HTTP-Referer": "https://github.com/qhacks",
+                "X-Title": "QHacks Chalkboard Notes",
             },
             json={
                 "model": IMAGE_GEN_MODEL,
@@ -199,98 +190,55 @@ def generate_diagram_image(chalkboard_image_path: str, output_dir: Path) -> str:
                     {
                         "role": "user",
                         "content": [
-                            {
-                                "type": "text",
-                                "text": enhanced_prompt
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime};base64,{image_data}"
-                                }
-                            }
-                        ]
+                            {"type": "text", "text": enhanced_prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_data}"}},
+                        ],
                     }
                 ],
-                "modalities": ["image", "text"],  # CRITICAL: Request image generation
-                "image_config": {
-                    "aspect_ratio": "16:9",  # Good for diagram displays
-                    "image_size": "2K"  # Higher resolution for clarity
-                },
+                "modalities": ["image", "text"],
+                "image_config": {"aspect_ratio": "16:9", "image_size": "2K"},
                 "temperature": 0.7,
             },
-            timeout=180,  # Increased timeout for image generation
+            timeout=180,
         )
         resp.raise_for_status()
         
-        response_data = resp.json()
+        message = resp.json()["choices"][0]["message"]
+        logger.info(f"Image gen response keys: {message.keys()}")
         
-        # Extract the image from the response - OpenRouter returns images in a specific field
-        message = response_data["choices"][0]["message"]
-        
-        # Log full response for debugging
-        logger.info(f"Full message response: {json.dumps(message, indent=2)[:1000]}")
-        
-        # Check if images were generated
         if "images" not in message or not message["images"]:
-            logger.error(f"No images in response. Message keys: {message.keys()}")
-            logger.error(f"Message content: {message.get('content', '')[:300]}")
-            logger.error(f"Model: {IMAGE_GEN_MODEL} may not support image generation or requires different parameters")
+            logger.error(f"No images in response. Content: {message.get('content', '')[:300]}")
             return None
         
-        # Get the first generated image
-        first_image = message["images"][0]
-        image_url = first_image["image_url"]["url"]
-        
-        # Extract base64 data from data URL
-        if not image_url.startswith("data:image/"):
-            logger.error(f"Unexpected image URL format: {image_url[:100]}")
+        data_url = message["images"][0]["image_url"]["url"]
+        if not data_url.startswith("data:image/"):
+            logger.error(f"Unexpected image URL format: {data_url[:100]}")
             return None
         
-        # Parse the data URL: data:image/png;base64,<base64_data>
-        match = re.search(r'data:image/(png|jpeg|jpg);base64,([A-Za-z0-9+/=]+)', image_url)
+        match = re.search(r'data:image/(png|jpeg|jpg);base64,([A-Za-z0-9+/=]+)', data_url)
         if not match:
-            logger.error(f"Could not parse data URL: {image_url[:100]}")
+            logger.error(f"Could not parse data URL: {data_url[:100]}")
             return None
         
-        ext = match.group(1)
-        base64_data = match.group(2)
-        
-        try:
-            image_data = base64.b64decode(base64_data)
-            logger.info(f"Successfully decoded image ({len(image_data)} bytes)")
-        except Exception as e:
-            logger.error(f"Failed to decode base64 image: {e}")
-            return None
-        
-        # Save the generated image
-        filename = f"diagram_{uuid.uuid4()}.{ext}"
-        filepath = output_dir / filename
-        
-        with open(filepath, "wb") as f:
-            f.write(image_data)
-        
-        logger.info(f"Generated diagram image saved to: {filepath} ({len(image_data)} bytes)")
-        return str(filepath)
+        img_ext = match.group(1)
+        img_bytes = base64.b64decode(match.group(2))
+        logger.info(f"Decoded diagram image ({len(img_bytes)} bytes, {img_ext})")
+        return img_bytes, img_ext
         
     except requests.exceptions.RequestException as e:
         logger.error(f"HTTP request failed for image generation: {e}")
-        if hasattr(e, 'response') and e.response is not None:
-            logger.error(f"Response status: {e.response.status_code}")
-            logger.error(f"Response body: {e.response.text[:500]}")
         return None
     except Exception as e:
         logger.error(f"Failed to generate diagram image: {e}", exc_info=True)
         return None
 
 
-def send_image_to_gemini(image_path: str, generate_diagrams: bool = True, diagrams_dir: Path = None) -> list[dict]:
+def send_image_to_gemini(image_path: str, generate_diagrams: bool = True) -> list[dict]:
     """Process chalkboard image and optionally generate images for diagrams.
     
-    Args:
-        image_path: Path to the chalkboard image
-        generate_diagrams: Whether to generate actual images for diagram sections
-        
+    When generate_diagrams is True, diagram sections will have their image bytes
+    attached as '_image_bytes' and '_image_ext' keys (to be uploaded by the caller).
+    
     Returns:
         List of section dictionaries with content
     """
@@ -313,12 +261,7 @@ def send_image_to_gemini(image_path: str, generate_diagrams: bool = True, diagra
                     "role": "user",
                     "content": [
                         {"type": "text", "text": PROMPT},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{mime};base64,{image_data}"
-                            },
-                        },
+                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_data}"}},
                     ],
                 }
             ],
@@ -334,25 +277,20 @@ def send_image_to_gemini(image_path: str, generate_diagrams: bool = True, diagra
     if match:
         text = match.group(1).strip()
 
-    # Fix LaTeX backslashes that break JSON parsing
     text = fix_latex_json(text)
-
     logger.info(f"AI response (fixed): {text[:500]}")
-
     sections = json.loads(text)
     
-    # Generate actual images for diagram sections if requested
-    if generate_diagrams and diagrams_dir:
-        diagrams_dir = Path(diagrams_dir)
-        diagrams_dir.mkdir(exist_ok=True)
-        
+    # Generate actual images for diagram sections
+    if generate_diagrams:
         for section in sections:
             if section.get("type") == "diagram":
-                # Pass only the original chalkboard image to Nano Banana for enhancement
-                generated_image_path = generate_diagram_image(image_path, diagrams_dir)
-                if generated_image_path:
-                    # Add the image path to the section
-                    section["image_url"] = f"/diagrams/{Path(generated_image_path).name}"
-                    logger.info(f"Added enhanced diagram image to section {section.get('section_id')}")
+                result = generate_diagram_image(image_path)
+                if result:
+                    img_bytes, img_ext = result
+                    # Attach raw bytes so the caller can upload to storage
+                    section["_image_bytes"] = img_bytes
+                    section["_image_ext"] = img_ext
+                    logger.info(f"Generated diagram for section {section.get('section_id')}")
     
     return sections

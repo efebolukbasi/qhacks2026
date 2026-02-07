@@ -247,7 +247,7 @@ export default function StudentRoomPage() {
                         {note.image_url ? (
                           <div className="mx-auto max-w-md">
                             <img
-                              src={`${BACKEND_URL}${note.image_url}`}
+                              src={note.image_url || ""}
                               alt={note.caption || "Diagram"}
                               className="w-full rounded border border-ink/10"
                             />
