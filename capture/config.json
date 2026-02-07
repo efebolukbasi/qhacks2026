@@ -3,7 +3,7 @@
   "camera_username": "admin",
   "camera_password": "admin",
   "backend_url": "http://localhost:8000",
-  "capture_interval_seconds": 60,
+  "capture_interval_seconds": 30,
   "jpeg_quality": 85,
   "connection_retries": 5
 }

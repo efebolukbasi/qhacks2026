@@ -9,6 +9,7 @@ interface NoteSection {
   type: "definition" | "equation" | "step" | "note" | "diagram";
   content: string;
   caption?: string;
+  image_url?: string;
   highlight_count: number;
 }
 

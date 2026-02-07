@@ -9,6 +9,7 @@ interface NoteSection {
   type: "definition" | "equation" | "step" | "note" | "diagram";
   content: string;
   caption?: string;
+  image_url?: string;
   highlight_count: number;
 }
 
@@ -142,10 +143,20 @@ export default function StudentPage() {
 
                   {note.type === "diagram" ? (
                     <div className="mt-2">
-                      <div
-                        className="mx-auto max-w-lg rounded-lg border border-stone-200 bg-white p-6 text-stone-800 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:w-full"
-                        dangerouslySetInnerHTML={{ __html: note.content }}
-                      />
+                      {note.image_url ? (
+                        <div className="mx-auto max-w-lg">
+                          <img
+                            src={`${BACKEND_URL}${note.image_url}`}
+                            alt={note.caption || "Generated diagram"}
+                            className="w-full rounded-lg border border-stone-200 bg-white"
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="mx-auto max-w-lg rounded-lg border border-stone-200 bg-white p-6 text-stone-800 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:w-full"
+                          dangerouslySetInnerHTML={{ __html: note.content }}
+                        />
+                      )}
                       {note.caption && (
                         <p className="mt-2 text-center text-sm italic text-stone-500">
                           {note.caption}

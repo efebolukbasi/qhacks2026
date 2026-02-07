@@ -30,6 +30,8 @@ def _init_db_sync():
                     content TEXT,
                     section_id TEXT UNIQUE,
                     type TEXT,
+                    caption TEXT,
+                    image_url TEXT,
                     created_at TIMESTAMP DEFAULT NOW()
                 );
             """)
@@ -60,12 +62,22 @@ def _upsert_notes_sync(sections: list):
             for section in sections:
                 cur.execute(
                     """
-                    INSERT INTO lecture_notes (section_id, type, content)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO lecture_notes (section_id, type, content, caption, image_url)
+                    VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (section_id)
-                    DO UPDATE SET content = EXCLUDED.content, type = EXCLUDED.type
+                    DO UPDATE SET 
+                        content = EXCLUDED.content, 
+                        type = EXCLUDED.type,
+                        caption = EXCLUDED.caption,
+                        image_url = EXCLUDED.image_url
                     """,
-                    (section["section_id"], section["type"], section["content"]),
+                    (
+                        section["section_id"], 
+                        section["type"], 
+                        section["content"],
+                        section.get("caption"),
+                        section.get("image_url")
+                    ),
                 )
         conn.commit()
     finally:
@@ -78,7 +90,7 @@ def _get_all_notes_sync():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT
-                    ln.id, ln.section_id, ln.type, ln.content, ln.created_at,
+                    ln.id, ln.section_id, ln.type, ln.content, ln.caption, ln.image_url, ln.created_at,
                     COALESCE(h.highlight_count, 0) AS highlight_count
                 FROM lecture_notes ln
                 LEFT JOIN highlights h ON ln.section_id = h.section_id
@@ -93,7 +105,7 @@ def _get_all_notes_sync():
                     (r["section_id"],),
                 )
                 comments = cur.fetchall()
-                notes.append({
+                note = {
                     "id": r["id"],
                     "section_id": r["section_id"],
                     "type": r["type"],
@@ -104,7 +116,12 @@ def _get_all_notes_sync():
                         {"comment": c["comment"], "created_at": c["created_at"].isoformat() if c["created_at"] else None}
                         for c in comments
                     ],
-                })
+                }
+                if r.get("caption"):
+                    note["caption"] = r["caption"]
+                if r.get("image_url"):
+                    note["image_url"] = r["image_url"]
+                notes.append(note)
             return notes
     finally:
         conn.close()

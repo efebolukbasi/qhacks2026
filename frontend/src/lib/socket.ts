@@ -9,7 +9,11 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io(BACKEND_URL, {
       autoConnect: false,
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"], // Try polling first
+      path: "/socket.io/", // Explicit path
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
   }
   if (!socket.connected) {

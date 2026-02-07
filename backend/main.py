@@ -11,6 +11,7 @@ load_dotenv()
 import socketio
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from database import create_pool, close_pool, init_db, upsert_notes, get_all_notes, increment_highlight, add_comment, get_comments
 from gemini_service import send_image_to_gemini
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 UPLOADS_DIR = Path(__file__).parent / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
+
+DIAGRAMS_DIR = UPLOADS_DIR / "diagrams"
+DIAGRAMS_DIR.mkdir(exist_ok=True)
 
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 
@@ -44,6 +48,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files for serving generated diagrams
+app.mount("/diagrams", StaticFiles(directory=str(DIAGRAMS_DIR)), name="diagrams")
+
 
 @app.post("/upload-image")
 async def upload_image(file: UploadFile = File(...)):
@@ -56,7 +63,7 @@ async def upload_image(file: UploadFile = File(...)):
         f.write(contents)
 
     try:
-        sections = send_image_to_gemini(str(filepath))
+        sections = send_image_to_gemini(str(filepath), generate_diagrams=True, diagrams_dir=DIAGRAMS_DIR)
     except Exception as e:
         logger.error(f"Gemini API error: {e}")
         return {"error": "Failed to process image with Gemini", "detail": str(e)}
