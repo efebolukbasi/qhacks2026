@@ -11,6 +11,8 @@ load_dotenv()
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from elevenlabs.client import ElevenLabs
 
 from supabase_client import (
     create_room,
@@ -148,3 +150,43 @@ async def api_highlight(code: str, body: dict):
         add_comment(room["id"], section_id, comment)
 
     return {"section_id": section_id, "highlight_count": count}
+
+
+# ---------------------------------------------------------------------------
+# Text-to-Speech endpoint (secure backend-only)
+# ---------------------------------------------------------------------------
+
+@app.post("/tts")
+async def text_to_speech(body: dict):
+    """
+    Convert text to speech using ElevenLabs.
+    API key is kept secure on the backend.
+    """
+    text = body.get("text")
+    voice_id = body.get("voice_id", "9BWtsMINqrJLrRacOk9x")  # default voice
+    
+    if not text:
+        raise HTTPException(400, "text is required")
+    
+    try:
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        if not api_key:
+            raise HTTPException(500, "ElevenLabs API key not configured")
+        
+        elevenlabs = ElevenLabs(api_key=api_key)
+        audio = elevenlabs.text_to_speech.convert(
+            text=text,
+            voice_id=voice_id,
+            model_id="eleven_multilingual_v2",
+            output_format="mp3_44100_128",
+        )
+        
+        return StreamingResponse(
+            content=audio,
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": "inline; filename=audio.mp3"}
+        )
+    except Exception as e:
+        logger.error(f"TTS error: {e}")
+        raise HTTPException(500, f"Failed to generate speech: {e}")
+
