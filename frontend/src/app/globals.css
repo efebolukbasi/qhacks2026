@@ -245,21 +245,76 @@ body::after {
 }
 
 /* ============================================================
-   VOICE BUTTON — ink-toned marginal speaker icon
+   VOICE GROUP — uniform M / F / speaker row
+   All buttons share the same height and visual weight.
    ============================================================ */
+.voice-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 1.5rem; /* 24px — single source of truth */
+}
+
+/* M / F gender toggle buttons */
+.voice-gender-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-mid);
+  background: transparent;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.voice-gender-btn:hover:not(:disabled) {
+  color: var(--ink);
+  background: rgba(44, 32, 20, 0.05);
+}
+
+.voice-gender-btn.active {
+  color: var(--cinnabar);
+  background: rgba(217, 79, 61, 0.08);
+  border-color: rgba(217, 79, 61, 0.12);
+}
+
+.voice-gender-btn:disabled:not(.active) {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Thin separator between gender toggles and speaker */
+.voice-sep {
+  width: 1px;
+  height: 0.75rem;
+  background: rgba(44, 32, 20, 0.12);
+  margin: 0 0.25rem;
+  flex-shrink: 0;
+}
+
+/* Speaker button — same dimensions as M/F */
 .voice-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.875rem;
-  height: 1.875rem;
+  width: 1.5rem;
+  height: 1.5rem;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
   color: var(--ink-mid);
   background: transparent;
-  transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
   flex-shrink: 0;
 }
 

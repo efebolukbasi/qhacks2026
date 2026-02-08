@@ -72,48 +72,40 @@ export default function VoiceButton({ text }: { text: string }) {
         "Listen to this section";
 
     return (
-        <div className="inline-flex items-center gap-0.5 text-[15px]">
-            <div className="flex gap-px">
-                    {(["male", "female"] as const).map((gender) => (
-                    <button
-                        key={gender}
-                        type="button"
-                        onClick={() => setVoiceGender(gender)}
-                        disabled={status !== "idle"}
-                            className={`font-mono font-semibold uppercase tracking-wider rounded-sm px-1 py-0.5 transition-colors ${
-                                voiceGender === gender
-                                    ? "text-cinnabar bg-bg-surface/30 shadow-[0_0.5px_0_rgba(0,0,0,0.03)]"
-                                    : "text-ink-mid hover:text-ink disabled:opacity-40 hover:bg-bg-surface/20 hover:shadow-[0_1px_1px_rgba(0,0,0,0.06)]"
-                            }`}
-                        aria-label={`Select ${gender} voice`}
-                    >
-                        {gender[0]}
-                    </button>
-                ))}
-            </div>
-            <span className="text-rule">|</span>
+        <div className="voice-group">
+            {(["male", "female"] as const).map((gender) => (
+                <button
+                    key={gender}
+                    type="button"
+                    onClick={() => setVoiceGender(gender)}
+                    disabled={status !== "idle"}
+                    className={`voice-gender-btn ${voiceGender === gender ? "active" : ""}`}
+                    aria-label={`Select ${gender} voice`}
+                >
+                    {gender[0].toUpperCase()}
+                </button>
+            ))}
+            <span className="voice-sep" />
             <button
                 type="button"
                 onClick={handleClick}
                 title={title}
                 aria-label={title}
                 data-status={status}
-                className="voice-btn text-ink hover:text-cinnabar transition-colors disabled:opacity-40"
-                style={{ width: "16px", height: "16px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                className="voice-btn"
             >
                 {status === "generating" ? (
                     <span className="voice-dots">
                         <span /><span /><span />
                     </span>
                 ) : status === "playing" ? (
-                    <svg className="voice-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        {/* Equaliser bars — animate while playing */}
+                    <svg className="voice-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect className="voice-bar voice-bar-1" x="4"  y="4" width="3" rx="1.5" height="16" fill="currentColor" />
                         <rect className="voice-bar voice-bar-2" x="10.5" y="7" width="3" rx="1.5" height="10" fill="currentColor" />
                         <rect className="voice-bar voice-bar-3" x="17" y="2" width="3" rx="1.5" height="20" fill="currentColor" />
                     </svg>
                 ) : (
-                    <svg className="voice-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="voice-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
                         <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
                     </svg>
