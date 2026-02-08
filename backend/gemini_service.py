@@ -212,16 +212,18 @@ def generate_diagram_image(
                     caption_block = f"\n\nCAPTION: {cap}"
                 break
 
-    enhanced_prompt = f"""Generate a clean, professional diagram based on the description below. A reference photo from a chalkboard is attached — use it ONLY to understand the spatial layout, proportions, and structure of the diagram. Do NOT simply enhance or filter the photo.
+    enhanced_prompt = f"""Generate a clean, professional diagram from the description below.
+
+A reference photo of a chalkboard is attached for spatial context ONLY. Do NOT copy, enhance, filter, or screenshot the photo. The output must be a NEWLY DRAWN illustration — not a modified version of the input photo and not a screenshot of anything.
 
 REQUIREMENTS:
-- Create the diagram FROM SCRATCH as a clean digital illustration
-- White background, clean black lines, professional appearance (like a textbook figure)
+- Draw the diagram FROM SCRATCH as a clean digital illustration (like a textbook figure)
+- Pure white background with clean black lines — nothing else
 - Accurate geometry: correct shapes, curves, angles, and proportions
 - Include all labels, annotations, axis labels, and arrows described
-- Use clear, readable fonts for all text/labels
-- Do NOT include any surrounding equations, definitions, or handwritten text from the board
-- The output image should contain ONLY the diagram, nothing else
+- Use clear, readable sans-serif fonts for all text/labels
+- The output image must contain ONLY the diagram itself — no surrounding elements of any kind
+- Do NOT include any equations, definitions, or handwritten text from the board
 - High resolution and high contrast{diagram_block}{caption_block}{exclude_block}"""
     
     try:
@@ -246,7 +248,7 @@ REQUIREMENTS:
                 ],
                 "modalities": ["image", "text"],
                 "image_config": {"aspect_ratio": "16:9", "image_size": "2K"},
-                "temperature": 0.7,
+                "temperature": 0.4,
             },
             timeout=180,
         )
