@@ -151,9 +151,19 @@ def fix_latex_json(text: str) -> str:
     return ''.join(result)
 
 
-def generate_diagram_image(chalkboard_image_path: str) -> tuple[bytes, str] | None:
-    """Enhance a diagram from the chalkboard image using OpenRouter's Nano Banana.
-    
+def generate_diagram_image(
+    chalkboard_image_path: str,
+    diagram_description: str | None = None,
+    all_sections: list[dict] | None = None,
+) -> tuple[bytes, str] | None:
+    """Enhance a diagram from the chalkboard image using OpenRouter.
+
+    Args:
+        chalkboard_image_path: Path to the full chalkboard photo.
+        diagram_description: The text description of the diagram to focus on.
+        all_sections: All sections extracted from this image (used to tell the
+            model which text content to ignore / exclude from the diagram).
+
     Returns:
         (image_bytes, extension) tuple, or None on failure.
     """
@@ -164,16 +174,45 @@ def generate_diagram_image(chalkboard_image_path: str) -> tuple[bytes, str] | No
     
     ext = chalkboard_image_path.lower().rsplit(".", 1)[-1] if "." in chalkboard_image_path else "jpeg"
     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(ext, "image/jpeg")
-    
-    enhanced_prompt = """Please clean up and enhance this diagram from a chalkboard photo:
+
+    # Build the list of text content to exclude from the generated image
+    exclude_block = ""
+    if all_sections:
+        text_items = []
+        for s in all_sections:
+            if s.get("type") != "diagram":
+                preview = s.get("content", s.get("content_preview", ""))[:200]
+                if preview:
+                    text_items.append(f"  - {preview}")
+        if text_items:
+            exclude_block = (
+                "\n\nIMPORTANT — TEXT TO EXCLUDE:\n"
+                "The following text/equations also appear on the board but are "
+                "already captured as typed notes. Do NOT include any of this "
+                "text in the generated image. Only render the diagram/figure "
+                "itself with its own labels and axes:\n"
+                + "\n".join(text_items)
+            )
+
+    diagram_focus = ""
+    if diagram_description:
+        diagram_focus = (
+            f"\n\nDIAGRAM TO FOCUS ON:\n"
+            f"{diagram_description}\n"
+            f"Render ONLY this diagram. Ignore everything else on the board."
+        )
+
+    enhanced_prompt = f"""Please clean up and enhance the diagram/figure from this chalkboard photo:
 
 - Enhance clarity and readability
 - Clean up the background (make it white/clean)
 - Improve line quality and contrast
-- Keep all labels, text, and mathematical notation visible and clear
-- Maintain the original structure and layout, as well as keep all the relative positions of the elements
+- Keep all labels and annotations that are PART OF the diagram (axis labels, point labels, arrows)
+- REMOVE any surrounding equations, definitions, or text that is NOT part of the diagram itself
+- Maintain the original structure and layout of the diagram
 - Make it look professional, like a textbook diagram
-- Ensure high contrast for visibility"""
+- Ensure high contrast for visibility
+- The output image should contain ONLY the diagram/figure, nothing else{diagram_focus}{exclude_block}"""
     
     try:
         resp = requests.post(
@@ -359,7 +398,11 @@ def send_image_to_gemini(
         for section in sections:
             sid = section.get("section_id")
             if section.get("type") == "diagram" and sid not in sections_with_images:
-                result = generate_diagram_image(image_path)
+                result = generate_diagram_image(
+                    image_path,
+                    diagram_description=section.get("content"),
+                    all_sections=sections,
+                )
                 if result:
                     img_bytes, img_ext = result
                     # Attach raw bytes so the caller can upload to storage
