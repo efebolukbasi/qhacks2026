@@ -24,6 +24,9 @@ RULES:
    - NEVER duplicate content as both LaTeX and plain text.
 4. Write the content as flowing prose with embedded math, like you would in a LaTeX document. Use complete sentences where appropriate. Sections should read naturally one after the other as a continuous document.
 5. Group related content together as it appears on the board. One block of work = one section.
+   - CRITICAL: NEVER split a sentence or paragraph across multiple blocks. If text forms a continuous thought (e.g. "The function f(x) = sin(x) is an example of a periodic function. It repeats every 2π."), it MUST be in a SINGLE block, not split into separate blocks.
+   - A block should contain COMPLETE sentences/paragraphs. Each block should end with proper punctuation (period, colon, etc.), not trail off mid-sentence.
+   - When in doubt, MERGE content into fewer, larger blocks rather than creating many small ones.
 6. Use newlines (\n) to separate paragraphs within a section. Keep the writing clean and readable.
 7. For DIAGRAMS/FIGURES on the board:
    - Set type to "diagram"
@@ -355,13 +358,107 @@ def _build_prompt(
     return base + context
 
 
+def _should_merge(prev: dict, curr: dict) -> bool:
+    """Decide whether two consecutive non-diagram sections should be merged.
+
+    Returns True ONLY when the previous block very clearly ends mid-sentence
+    (no terminal punctuation AND doesn't end with display math).
+    We intentionally keep this conservative — a false negative (not merging
+    two blocks that could be joined) looks fine, but a false positive
+    (wrongly gluing two independent blocks) corrupts the notes.
+    """
+    # Never merge diagrams
+    if prev.get("type") == "diagram" or curr.get("type") == "diagram":
+        return False
+
+    prev_content = (prev.get("content") or "").rstrip()
+    curr_content = (curr.get("content") or "").lstrip()
+
+    if not prev_content or not curr_content:
+        return False
+
+    # If the previous block ends with display math ($$...$$), treat it as
+    # self-contained — display equations typically terminate a thought.
+    if prev_content.endswith("$$"):
+        return False
+
+    # If the current block starts with display math, it's likely a new
+    # standalone equation block — don't merge.
+    if curr_content.lstrip().startswith("$$"):
+        return False
+
+    # Strip trailing inline $ to find the real last prose character.
+    check_prev = prev_content
+    if check_prev.endswith("$") and not check_prev.endswith("$$"):
+        # Walk backwards past the inline math to find what's before it
+        # e.g. "is $\sin(x)$" → check the character before the opening $
+        inner_start = check_prev.rfind("$", 0, len(check_prev) - 1)
+        if inner_start > 0:
+            check_prev = check_prev[:inner_start].rstrip()
+        else:
+            check_prev = check_prev[:-1].rstrip()
+
+    # Terminal punctuation that signals end of a thought
+    terminal_punct = {".", "!", "?", ":", ";", "—"}
+    ends_with_punct = bool(check_prev) and check_prev[-1] in terminal_punct
+
+    # Only merge when the previous block clearly trails off mid-sentence
+    if not ends_with_punct:
+        return True
+
+    return False
+
+
+def _merge_sections(sections: list[dict]) -> tuple[list[dict], list[str]]:
+    """Post-process sections to merge consecutive blocks that were split mid-sentence.
+
+    Preserves original section_ids as much as possible. When blocks are merged,
+    the surviving block keeps the FIRST (earliest) section_id so existing DB
+    rows are updated in-place rather than orphaned.
+
+    Returns:
+        (merged_sections, consumed_ids) — consumed_ids is the list of
+        section_ids that were folded into another block and should be
+        deleted from the DB.
+    """
+    if not sections:
+        return sections, []
+
+    merged: list[dict] = []
+    consumed_ids: list[str] = []
+    for section in sections:
+        if not merged:
+            merged.append(dict(section))
+            continue
+
+        prev = merged[-1]
+        if _should_merge(prev, section):
+            # Merge: append current content to previous block
+            joiner = " " if not prev["content"].rstrip().endswith("\n") else ""
+            prev["content"] = prev["content"].rstrip() + joiner + section["content"].lstrip()
+            # Keep the more "specific" type if they differ (equation > note > step)
+            type_priority = {"equation": 3, "definition": 3, "step": 2, "note": 1}
+            if type_priority.get(section.get("type", ""), 0) > type_priority.get(prev.get("type", ""), 0):
+                prev["type"] = section["type"]
+            sid = section.get("section_id")
+            if sid:
+                consumed_ids.append(sid)
+            logger.info(
+                f"Merged section {section.get('section_id')} into {prev.get('section_id')}"
+            )
+        else:
+            merged.append(dict(section))
+
+    return merged, consumed_ids
+
+
 def send_image_to_gemini(
     image_path: str,
     generate_diagrams: bool = True,
     existing_sections: list[dict] | None = None,
     previous_image_b64: str | None = None,
     previous_image_mime: str | None = None,
-) -> list[dict]:
+) -> tuple[list[dict], list[str]]:
     """Process chalkboard image and optionally generate images for diagrams.
 
     When generate_diagrams is True, diagram sections will have their image bytes
@@ -377,7 +474,9 @@ def send_image_to_gemini(
         previous_image_mime: MIME type of the previous image.
 
     Returns:
-        List of section dictionaries with content
+        (sections, consumed_ids) — sections is the list of section dicts;
+        consumed_ids lists any section_ids that were merged into another
+        block and should be deleted from the DB.
     """
     with open(image_path, "rb") as f:
         image_data = base64.b64encode(f.read()).decode("utf-8")
@@ -438,7 +537,11 @@ def send_image_to_gemini(
     text = fix_latex_json(text)
     logger.info(f"AI response (fixed): {text[:500]}")
     sections = json.loads(text)
-    
+
+    # Post-process: merge blocks that were incorrectly split mid-sentence
+    sections, consumed_ids = _merge_sections(sections)
+    logger.info(f"After merging: {len(sections)} sections, consumed IDs: {consumed_ids}")
+
     if generate_diagrams:
         for section in sections:
             sid = section.get("section_id")
@@ -458,4 +561,4 @@ def send_image_to_gemini(
             else:
                 logger.warning(f"Diagram generation failed for section {sid}")
     
-    return sections
+    return sections, consumed_ids

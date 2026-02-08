@@ -21,6 +21,7 @@ from supabase_client import (
     get_all_rooms,
     verify_professor_key,
     upsert_notes,
+    delete_notes,
     get_notes_for_room,
     get_existing_sections_summary,
     increment_highlight,
@@ -138,7 +139,7 @@ async def upload_image(code: str, file: UploadFile = File(...)):
         prev_mime = prev[1] if prev else None
 
         try:
-            sections = await asyncio.to_thread(
+            sections, consumed_ids = await asyncio.to_thread(
                 send_image_to_gemini,
                 tmp_path,
                 True,
@@ -152,6 +153,10 @@ async def upload_image(code: str, file: UploadFile = File(...)):
         finally:
             # Clean up temp file
             Path(tmp_path).unlink(missing_ok=True)
+
+        # Delete DB rows for sections that were merged into another block
+        if consumed_ids:
+            delete_notes(room["id"], consumed_ids)
 
         # Store current image as the previous capture for next time
         _previous_captures[room["id"]] = (current_b64, current_mime)

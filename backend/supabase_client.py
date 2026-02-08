@@ -129,6 +129,15 @@ def upsert_notes(room_id: str, sections: list[dict]) -> None:
     sb.table("lecture_notes").upsert(rows, on_conflict="room_id,section_id").execute()
 
 
+def delete_notes(room_id: str, section_ids: list[str]) -> None:
+    """Delete specific lecture note sections by their section_ids."""
+    if not section_ids:
+        return
+    sb = get_client()
+    sb.table("lecture_notes").delete().eq("room_id", room_id).in_("section_id", section_ids).execute()
+    logger.info(f"Deleted orphaned sections: {section_ids}")
+
+
 def get_existing_section_ids(room_id: str) -> list[str]:
     """Return all section_ids that already exist for a room."""
     sb = get_client()
