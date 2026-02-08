@@ -16,11 +16,16 @@ import "katex/dist/katex.min.css";
 export default function LatexContent({ text }: { text: string }) {
   const parts = useMemo(() => {
     // Normalise literal backslash-n sequences that slipped through as text
-    // (e.g. from older DB entries where fix_latex_json over-escaped newlines)
-    const cleaned = text.replace(/\\n/g, "\n");
+    // (e.g. from older DB entries where fix_latex_json over-escaped newlines).
+    // We must NOT replace \\n that is part of a LaTeX command like \neq, \nabla,
+    // \nu, \newcommand, \not, \nolimits, \neg, \notin, etc.
+    // Strategy: only replace \n when followed by a non-alpha character (or end),
+    // since LaTeX commands always have alphabetic characters after the backslash.
+    const cleaned = text.replace(/\\n(?![a-zA-Z])/g, "\n");
 
     // Match $$ (display), $ (inline), \[...\] (display), \(...\) (inline)
-    const regex = /(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g;
+    // Allow newlines inside inline $ delimiters so multi-line math isn't broken
+    const regex = /(\$\$[\s\S]*?\$\$|\$(?:[^$])+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g;
     const segments: { type: "text" | "display" | "inline"; value: string }[] =
       [];
     let lastIndex = 0;
