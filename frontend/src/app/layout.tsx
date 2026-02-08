@@ -15,10 +15,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <header className="sticky top-0 z-50 border-b border-rule bg-bg/90 backdrop-blur-sm">
+        <header className="header-entrance sticky top-0 z-50 border-b border-rule bg-bg/90 backdrop-blur-sm">
           <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-3.5">
             <Link href="/" className="flex items-baseline gap-2 no-underline">
-              <span className="font-display text-[22px] italic tracking-tight text-on-dark">
+              <span className="logo-hover font-display text-[22px] italic tracking-tight text-on-dark">
                 ChalkBoard
               </span>
               <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.25em] text-cinnabar">
@@ -29,21 +29,21 @@ export default function RootLayout({
             <nav className="flex items-center font-mono text-[11px] tracking-wide">
               <Link
                 href="/"
-                className="border-b border-transparent px-3 py-1 text-graphite transition-colors duration-200 hover:border-on-dark-dim/30 hover:text-on-dark"
+                className="nav-link px-3 py-1 text-graphite transition-colors duration-200 hover:text-on-dark"
               >
                 join
               </Link>
               <span className="px-1.5 text-rule select-none">/</span>
               <Link
                 href="/rooms"
-                className="border-b border-transparent px-3 py-1 text-graphite transition-colors duration-200 hover:border-on-dark-dim/30 hover:text-on-dark"
+                className="nav-link px-3 py-1 text-graphite transition-colors duration-200 hover:text-on-dark"
               >
                 rooms
               </Link>
               <span className="px-1.5 text-rule select-none">/</span>
               <Link
                 href="/professor"
-                className="border-b border-transparent px-3 py-1 text-graphite transition-colors duration-200 hover:border-on-dark-dim/30 hover:text-on-dark"
+                className="nav-link px-3 py-1 text-graphite transition-colors duration-200 hover:text-on-dark"
               >
                 professor
               </Link>

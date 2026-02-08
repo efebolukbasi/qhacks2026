@@ -11,7 +11,9 @@
       "Bash(python:*)",
       "WebFetch(domain:openrouter.ai)",
       "Bash(docker ps:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(timeout /t 15 /nobreak)",
+      "Bash(timeout 10 sleep:*)"
     ]
   }
 }

@@ -362,7 +362,7 @@ export default function ProfessorRoomPage() {
   return (
     <div className="mx-auto max-w-4xl">
       {/* Room header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <div className="stagger-children mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-widest text-on-dark-dim">
             Professor Dashboard
@@ -397,7 +397,7 @@ export default function ProfessorRoomPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Left column: Camera */}
-        <section>
+        <section className="ink-reveal" style={{ '--delay': '100ms' } as React.CSSProperties}>
           <h2 className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-on-dark-dim">
             Camera Capture
           </h2>
@@ -423,7 +423,7 @@ export default function ProfessorRoomPage() {
               )}
               {processing && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <p className="font-mono text-xs text-cream animate-pulse">
+                  <p className="font-mono text-xs text-cream breathe">
                     Processing...
                   </p>
                 </div>
@@ -495,7 +495,7 @@ export default function ProfessorRoomPage() {
         </section>
 
         {/* Right column: Engagement dashboard */}
-        <section>
+        <section className="ink-reveal" style={{ '--delay': '200ms' } as React.CSSProperties}>
           {/* Most Highlighted */}
           <h2 className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-on-dark-dim">
             Student Engagement

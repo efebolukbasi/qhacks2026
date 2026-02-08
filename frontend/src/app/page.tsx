@@ -33,7 +33,7 @@ export default function HomePage() {
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center">
-      <div className="w-full max-w-sm text-center">
+      <div className="stagger-children w-full max-w-sm text-center">
         {/* Logo */}
         <h1 className="font-display text-5xl italic tracking-tight text-cream">
           ChalkBoard
@@ -62,7 +62,7 @@ export default function HomePage() {
         />
 
         {error && (
-          <p className="mt-3 text-xs text-cinnabar">{error}</p>
+          <p className="slide-down mt-3 text-xs text-cinnabar">{error}</p>
         )}
 
         <button

@@ -311,16 +311,16 @@ export default function StudentRoomPage() {
       {/* Back link */}
       <button
         onClick={() => router.push("/rooms")}
-        className="mb-4 flex items-center gap-1.5 font-mono text-[11px] text-on-dark-dim transition-colors hover:text-on-dark"
+        className="group mb-4 flex items-center gap-1.5 font-mono text-[11px] text-on-dark-dim transition-colors hover:text-on-dark"
       >
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+        <svg className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
         All Rooms
       </button>
 
       {/* Room header */}
-      <div className="mb-6 flex items-baseline justify-between">
+      <div className="stagger-children mb-6 flex items-baseline justify-between">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-widest text-on-dark-dim">
             Room {room.code}
@@ -332,13 +332,13 @@ export default function StudentRoomPage() {
           )}
         </div>
         <span className="flex items-center gap-1.5 font-mono text-[10px] text-copper">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-copper animate-pulse" />
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-copper live-pulse" />
           live
         </span>
       </div>
 
       {notes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-rule bg-bg-surface py-20 text-on-dark-dim">
+        <div className="breathe flex flex-col items-center justify-center rounded-lg border border-rule bg-bg-surface py-20 text-on-dark-dim">
           <p className="font-display text-xl italic text-on-dark-dim/60">
             Waiting for lecture to begin...
           </p>
@@ -347,7 +347,7 @@ export default function StudentRoomPage() {
           </p>
         </div>
       ) : (
-        <div className="paper-page rounded-lg px-8 py-10 shadow-lg sm:px-12 sm:py-12">
+        <div className="paper-page page-settle rounded-lg px-8 py-10 shadow-lg sm:px-12 sm:py-12">
           {/* Document header */}
           <header className="mb-8 text-center">
             <h2 className="font-display text-2xl font-semibold italic text-ink sm:text-3xl">

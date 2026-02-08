@@ -88,6 +88,159 @@ body::after {
 ::selection { background: rgba(200,165,92,0.2); color: inherit; }
 
 /* ============================================================
+   ANIMATIONS — scholarly, subtle, purposeful
+   Ink settling onto parchment, not bouncy tech UI.
+   ============================================================ */
+
+/* --- Keyframes --- */
+
+/* Content appearing — like ink drying on paper */
+@keyframes inkReveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Very subtle pulse for live indicators */
+@keyframes gentlePulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.15); }
+}
+
+/* Warm glow for focused inputs */
+@keyframes warmGlow {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(200, 165, 92, 0.12); }
+  50%      { box-shadow: 0 0 0 3px rgba(200, 165, 92, 0.2); }
+}
+
+/* Paper page settling onto the desk */
+@keyframes pageSettle {
+  from { opacity: 0; transform: translateY(8px) scale(0.998); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Slide down from above for errors/alerts */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Gentle breathing for waiting states */
+@keyframes breathe {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 0.8; }
+}
+
+/* Attention pulse for warnings */
+@keyframes attentionPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 79, 61, 0); }
+  50%      { box-shadow: 0 0 0 3px rgba(217, 79, 61, 0.08); }
+}
+
+/* --- Utility classes --- */
+
+/* Staggered entrance — apply .ink-reveal and set --delay via style attr */
+.ink-reveal {
+  animation: inkReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* Stagger children automatically */
+.stagger-children > * {
+  animation: inkReveal 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 360ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 420ms; }
+
+/* Paper settle entrance */
+.page-settle {
+  animation: pageSettle 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Slide-down entrance for errors */
+.slide-down {
+  animation: slideDown 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Live pulse — refined, not harsh */
+.live-pulse {
+  animation: gentlePulse 2.5s ease-in-out infinite;
+}
+
+/* Breathing / waiting state */
+.breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* Warning attention pulse */
+.attention-pulse {
+  animation: attentionPulse 2s ease-in-out infinite;
+}
+
+/* --- Global interactive micro-animations --- */
+
+/* Buttons: subtle press on :active */
+button:not(.voice-btn):not(.voice-gender-btn):not(.diagram-tool-btn):not(.diagram-lb-btn):not(.diagram-flag-btn) {
+  transition: transform 0.15s ease, color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+button:not(.voice-btn):not(.voice-gender-btn):not(.diagram-tool-btn):not(.diagram-lb-btn):not(.diagram-flag-btn):active:not(:disabled) {
+  transform: scale(0.975);
+}
+
+/* Text inputs: warm lamplight glow on focus */
+input[type="text"]:focus,
+input[type="password"]:focus {
+  box-shadow: 0 0 0 2px rgba(200, 165, 92, 0.12);
+  animation: warmGlow 2s ease-in-out infinite;
+}
+
+/* Cards / panels: subtle hover lift */
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Nav link underline grow from center */
+.nav-link {
+  position: relative;
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  width: 0;
+  height: 1px;
+  background: var(--on-dark-dim);
+  transition: width 0.25s ease, left 0.25s ease;
+}
+.nav-link:hover::after {
+  width: 100%;
+  left: 0;
+}
+
+/* Header fade-in on load */
+.header-entrance {
+  animation: inkReveal 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Logo hover — letter-spacing tightens subtly */
+.logo-hover {
+  transition: letter-spacing 0.3s ease;
+}
+.logo-hover:hover {
+  letter-spacing: -0.01em;
+}
+
+/* ============================================================
    PAPER — the cream content area (the core motif)
    ============================================================ */
 .paper-page {

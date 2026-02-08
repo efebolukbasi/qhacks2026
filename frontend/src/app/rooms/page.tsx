@@ -130,7 +130,7 @@ export default function StudentRoomsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-8">
+      <div className="stagger-children mb-8">
         <h1 className="font-display text-3xl italic tracking-tight text-cream">
           All Rooms
         </h1>
@@ -224,11 +224,12 @@ export default function StudentRoomsPage() {
 
       {/* Room cards */}
       <div className="grid gap-3">
-        {filtered.map((room) => (
+        {filtered.map((room, idx) => (
           <button
             key={room.id}
             onClick={() => router.push(`/room/${room.code}`)}
-            className="group flex w-full items-center gap-4 rounded-xl border border-rule bg-bg-surface p-4 text-left transition-all hover:border-on-dark-dim/20 hover:bg-bg-raised"
+            className="ink-reveal hover-lift group flex w-full items-center gap-4 rounded-xl border border-rule bg-bg-surface p-4 text-left transition-all hover:border-on-dark-dim/20 hover:bg-bg-raised"
+            style={{ '--delay': `${idx * 50}ms` } as React.CSSProperties}
           >
             {/* Room code badge */}
             <div className="flex h-12 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-bg-raised font-mono text-sm font-bold tracking-[0.15em] text-lamplight group-hover:bg-bg-surface">

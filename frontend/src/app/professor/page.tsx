@@ -62,7 +62,7 @@ export default function ProfessorCreatePage() {
   if (createdRoom) {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center">
-        <div className="w-full max-w-sm text-center">
+        <div className="stagger-children w-full max-w-sm text-center">
           <div className="mb-2 text-3xl">🔑</div>
           <h1 className="font-display text-2xl italic text-cream">
             Room Created!
@@ -96,7 +96,7 @@ export default function ProfessorCreatePage() {
             </button>
           </div>
 
-          <p className="mt-4 rounded bg-cinnabar/10 px-3 py-2 text-xs text-cinnabar">
+          <p className="attention-pulse mt-4 rounded bg-cinnabar/10 px-3 py-2 text-xs text-cinnabar">
             ⚠ This key will not be shown again. Save it somewhere safe!
           </p>
 
@@ -113,7 +113,7 @@ export default function ProfessorCreatePage() {
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center">
-      <div className="w-full max-w-sm text-center">
+      <div className="stagger-children w-full max-w-sm text-center">
         <h1 className="font-display text-3xl italic text-cream">
           Create a Room
         </h1>
