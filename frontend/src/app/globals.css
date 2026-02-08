@@ -219,6 +219,17 @@ body::after {
   font-weight: 600;
   letter-spacing: 0.02em;
   line-height: 1;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.hl-count.hl-count-bump {
+  animation: hlBump 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes hlBump {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
 }
 
 /* Comment row */
@@ -317,19 +328,23 @@ body::after {
    DIAGRAM VIEWER — hover frame, toolbar, lightbox
    ============================================================ */
 
-/* Inline frame */
+/* Inline frame — warm lamplight reveal on hover */
 .diagram-frame {
   position: relative;
   cursor: pointer;
   border-radius: 0.5rem;
   overflow: hidden;
   border: 1px solid rgba(44, 32, 20, 0.08);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .diagram-frame:hover {
-  border-color: rgba(200, 165, 92, 0.25);
-  box-shadow: 0 2px 12px rgba(200, 165, 92, 0.08);
+  border-color: rgba(200, 165, 92, 0.3);
+  box-shadow:
+    0 4px 20px rgba(200, 165, 92, 0.12),
+    0 0 0 1px rgba(200, 165, 92, 0.08),
+    inset 0 0 30px rgba(200, 165, 92, 0.03);
+  transform: translateY(-2px);
 }
 
 .diagram-img-wrap {
@@ -340,10 +355,55 @@ body::after {
   margin: 0 auto;
 }
 
+/* "Click to expand" overlay hint — appears on hover */
+.diagram-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(44, 32, 20, 0.45) 0%,
+    rgba(44, 32, 20, 0) 40%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.diagram-frame:hover::after {
+  opacity: 1;
+}
+
+.diagram-expand-hint {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cream-dim);
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.diagram-frame:hover .diagram-expand-hint {
+  opacity: 0.85;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* Hover toolbar — bottom-right inside the frame */
 .diagram-toolbar {
   position: absolute;
-  bottom: 0.5rem;
+  top: 0.5rem;
   right: 0.5rem;
   display: flex;
   gap: 0.25rem;
@@ -352,9 +412,9 @@ body::after {
   background: rgba(44, 32, 20, 0.75);
   backdrop-filter: blur(8px);
   opacity: 0;
-  transform: translateY(4px);
+  transform: translateY(-4px);
   transition: opacity 0.25s ease, transform 0.25s ease;
-  z-index: 2;
+  z-index: 4;
 }
 
 .diagram-frame:hover .diagram-toolbar {
@@ -378,7 +438,60 @@ body::after {
 
 .diagram-tool-btn:hover {
   color: var(--cream);
-  background: rgba(245, 240, 230, 0.12);
+  background: rgba(245, 240, 230, 0.15);
+}
+
+/* Diagram flag — marginal annotation mark, like a professor's red tick */
+.diagram-flag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.625rem 0.25rem 0.375rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--ink-mid);
+  background: transparent;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 12px;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  transition: color 0.2s ease, background-color 0.2s ease;
+  position: relative;
+}
+
+.diagram-flag-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15%;
+  bottom: 15%;
+  width: 2px;
+  background: transparent;
+  border-radius: 1px;
+  transition: background-color 0.2s ease;
+}
+
+.diagram-flag-btn:hover {
+  color: var(--cinnabar);
+  background: rgba(217, 79, 61, 0.06);
+}
+
+.diagram-flag-btn:hover::before {
+  background: var(--cinnabar);
+}
+
+.diagram-flag-btn:active {
+  transform: scale(0.96);
+}
+
+.diagram-flag-btn svg {
+  transition: transform 0.2s ease;
+}
+
+.diagram-flag-btn:hover svg {
+  transform: rotate(-8deg) scale(1.1);
 }
 
 /* ---- Lightbox ---- */
@@ -480,6 +593,18 @@ body::after {
   object-fit: contain;
   transition: transform 0.2s ease;
   user-select: none;
+}
+
+.diagram-inline-caption {
+  padding: 0.5rem 0.75rem 0.375rem;
+  text-align: center;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 12px;
+  font-style: italic;
+  font-weight: 500;
+  color: var(--ink-mid);
+  letter-spacing: 0.01em;
+  border-top: 1px solid rgba(44, 32, 20, 0.06);
 }
 
 .diagram-lb-caption {

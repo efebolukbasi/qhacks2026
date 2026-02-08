@@ -96,7 +96,7 @@ export default function DiagramViewer({ src, alt, caption }: DiagramViewerProps)
     dragRef.current = null;
   }, []);
 
-  // ESC key closes lightbox
+  // ESC key and scroll-wheel zoom in lightbox
   useEffect(() => {
     if (!lightbox) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -110,8 +110,21 @@ export default function DiagramViewer({ src, alt, caption }: DiagramViewerProps)
         });
       }
     };
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.25 : -0.25;
+      setZoom((z) => {
+        const next = Math.min(Math.max(z + delta, 1), 4);
+        if (next === 1) setPan({ x: 0, y: 0 });
+        return next;
+      });
+    };
     window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      window.removeEventListener("wheel", handleWheel);
+    };
   }, [lightbox, closeLightbox]);
 
   return (
@@ -123,27 +136,24 @@ export default function DiagramViewer({ src, alt, caption }: DiagramViewerProps)
             src={src}
             alt={alt}
             fill
-            className="rounded object-contain transition-transform duration-300 group-hover/diag:scale-[1.02]"
+            className="rounded object-contain transition-transform duration-500 ease-out group-hover/diag:scale-[1.03]"
             unoptimized
           />
         </div>
 
-        {/* Hover toolbar */}
+        {/* "Click to expand" hint — bottom center on hover */}
+        <span className="diagram-expand-hint">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 3 21 3 21 9" />
+            <polyline points="9 21 3 21 3 15" />
+            <line x1="21" y1="3" x2="14" y2="10" />
+            <line x1="3" y1="21" x2="10" y2="14" />
+          </svg>
+          Click to expand
+        </span>
+
+        {/* Hover toolbar — top-right */}
         <div className="diagram-toolbar">
-          <button
-            type="button"
-            onClick={openLightbox}
-            title="Expand diagram"
-            className="diagram-tool-btn"
-          >
-            {/* Expand icon */}
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 3 21 3 21 9" />
-              <polyline points="9 21 3 21 3 15" />
-              <line x1="21" y1="3" x2="14" y2="10" />
-              <line x1="3" y1="21" x2="10" y2="14" />
-            </svg>
-          </button>
           <button
             type="button"
             onClick={copyImage}
@@ -151,12 +161,10 @@ export default function DiagramViewer({ src, alt, caption }: DiagramViewerProps)
             className="diagram-tool-btn"
           >
             {copied ? (
-              /* Check icon */
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             ) : (
-              /* Copy icon */
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
@@ -166,7 +174,7 @@ export default function DiagramViewer({ src, alt, caption }: DiagramViewerProps)
         </div>
 
         {caption && (
-          <figcaption className="mt-2 text-center font-mono text-[10px] italic text-ink-mid">
+          <figcaption className="diagram-inline-caption">
             {caption}
           </figcaption>
         )}

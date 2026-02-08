@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
 import { getSupabase, BACKEND_URL } from "@/lib/supabase";
 import LatexContent from "@/components/LatexContent";
 import VoiceButton from "@/components/VoiceButton";
@@ -369,25 +368,16 @@ export default function StudentRoomPage() {
                   return (
                     <figure className={`my-4 ${isNew ? "animate-fadeIn" : ""}`}>
                       {note.image_url ? (
-                        <div className="relative mx-auto max-w-md aspect-video">
-                          <Image
-                            src={note.image_url || ""}
-                            alt={note.caption || "Diagram"}
-                            fill
-                            className="rounded border border-ink/10 object-contain"
-                            unoptimized
-                          />
-                        </div>
+                        <DiagramViewer
+                          src={note.image_url}
+                          alt={note.caption || "Diagram"}
+                          caption={note.caption}
+                        />
                       ) : (
                         <div
                           className="mx-auto max-w-md rounded border border-ink/10 p-6"
                           dangerouslySetInnerHTML={{ __html: note.content }}
                         />
-                      )}
-                      {note.caption && (
-                        <figcaption className="mt-2 text-center font-mono text-[10px] italic text-ink-mid">
-                          {note.caption}
-                        </figcaption>
                       )}
                     </figure>
                   );
@@ -440,20 +430,57 @@ export default function StudentRoomPage() {
                       isHighlighted ? "highlighted" : ""
                     }`}
                   >
-                    {note.highlight_count > 0 && (
-                      <span className="absolute -right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-cinnabar font-mono text-[9px] font-bold text-cream opacity-0 group-hover:opacity-100 transition-opacity">
-                        {note.highlight_count}
-                      </span>
-                    )}
-
                     {renderContent()}
 
-                    {/* Section toolbar — voice, revealed on hover */}
-                    {note.type !== "diagram" && (
-                      <div className="section-toolbar">
+                    {/* Section toolbar — revealed on hover */}
+                    <div className="section-toolbar">
+                      {note.type !== "diagram" && (
                         <VoiceButton text={note.content} />
-                      </div>
-                    )}
+                      )}
+                      {note.type === "diagram" && (
+                        <button
+                          type="button"
+                          title="Flag this diagram"
+                          className="diagram-flag-btn"
+                          onClick={() => {
+                            // Optimistic update — instantly bump the count
+                            setNotes((prev) =>
+                              prev.map((n) =>
+                                n.section_id === note.section_id
+                                  ? { ...n, highlight_count: n.highlight_count + 1 }
+                                  : n
+                              )
+                            );
+                            // Trigger bump animation on the badge
+                            const badge = document.querySelector(
+                              `[data-section-id="${note.section_id}"] .hl-count`
+                            );
+                            if (badge) {
+                              badge.classList.remove("hl-count-bump");
+                              void (badge as HTMLElement).offsetWidth;
+                              badge.classList.add("hl-count-bump");
+                            }
+                            // Fire-and-forget API call
+                            fetch(`${BACKEND_URL}/rooms/${code}/highlight`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ section_id: note.section_id }),
+                            }).catch(() => {});
+                          }}
+                        >
+                          {/* Quill/pen nib icon — scholarly annotation */}
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+                            <line x1="16" y1="8" x2="2" y2="22" />
+                            <line x1="17.5" y1="15" x2="9" y2="15" />
+                          </svg>
+                          <span>Mark</span>
+                        </button>
+                      )}
+                      {note.highlight_count > 0 && (
+                        <span className="hl-count">{note.highlight_count}</span>
+                      )}
+                    </div>
 
                     {/* Inline comments for this section */}
                     {sectionComments.length > 0 && (
