@@ -163,25 +163,33 @@ async def upload_image(code: str, file: UploadFile = File(...)):
             if s.get("image_url")
         }
 
-        # Upload any generated diagram images to Supabase Storage,
-        # but skip sections that already have an image (reused diagrams).
+        # Upload any generated diagram images to Supabase Storage.
+        # If new image bytes were generated, always upload them (replaces old image).
+        # If generation failed/skipped but an existing image exists, keep it as fallback.
         for section in sections:
             img_bytes = section.pop("_image_bytes", None)
             img_ext = section.pop("_image_ext", None)
 
-            existing_url = existing_images.get(section.get("section_id"))
-            if existing_url:
-                # Reused section already has a diagram — keep it
-                section["image_url"] = existing_url
-                logger.info(f"Keeping existing image for reused section {section.get('section_id')}")
-            elif img_bytes and img_ext:
+            if img_bytes and img_ext:
+                # New image generated — upload and use it
                 mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(img_ext, "image/png")
                 filename = f"diagram_{uuid.uuid4()}.{img_ext}"
                 try:
                     public_url = upload_diagram(filename, img_bytes, mime)
                     section["image_url"] = public_url
+                    logger.info(f"Uploaded new diagram for section {section.get('section_id')}")
                 except Exception as e:
                     logger.error(f"Failed to upload diagram to storage: {e}")
+                    # Fall back to existing image if upload fails
+                    existing_url = existing_images.get(section.get("section_id"))
+                    if existing_url:
+                        section["image_url"] = existing_url
+            else:
+                # No new image bytes — keep existing image as fallback
+                existing_url = existing_images.get(section.get("section_id"))
+                if existing_url:
+                    section["image_url"] = existing_url
+                    logger.info(f"Keeping existing image for section {section.get('section_id')} (no new image generated)")
 
         # Write results to Supabase — Realtime will push updates to clients
         upsert_notes(room["id"], sections)
