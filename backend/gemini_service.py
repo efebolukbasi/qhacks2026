@@ -194,25 +194,32 @@ def generate_diagram_image(
                 + "\n".join(text_items)
             )
 
-    diagram_focus = ""
+    diagram_block = ""
     if diagram_description:
-        diagram_focus = (
-            f"\n\nDIAGRAM TO FOCUS ON:\n"
-            f"{diagram_description}\n"
-            f"Render ONLY this diagram. Ignore everything else on the board."
+        diagram_block = (
+            f"\n\nDIAGRAM DESCRIPTION:\n{diagram_description}"
         )
 
-    enhanced_prompt = f"""Please clean up and enhance the diagram/figure from this chalkboard photo:
+    caption_block = ""
+    if all_sections:
+        for s in all_sections:
+            if s.get("type") == "diagram" and s.get("content") == diagram_description:
+                cap = s.get("caption", "")
+                if cap:
+                    caption_block = f"\n\nCAPTION: {cap}"
+                break
 
-- Enhance clarity and readability
-- Clean up the background (make it white/clean)
-- Improve line quality and contrast
-- Keep all labels and annotations that are PART OF the diagram (axis labels, point labels, arrows)
-- REMOVE any surrounding equations, definitions, or text that is NOT part of the diagram itself
-- Maintain the original structure and layout of the diagram
-- Make it look professional, like a textbook diagram
-- Ensure high contrast for visibility
-- The output image should contain ONLY the diagram/figure, nothing else{diagram_focus}{exclude_block}"""
+    enhanced_prompt = f"""Generate a clean, professional diagram based on the description below. A reference photo from a chalkboard is attached — use it ONLY to understand the spatial layout, proportions, and structure of the diagram. Do NOT simply enhance or filter the photo.
+
+REQUIREMENTS:
+- Create the diagram FROM SCRATCH as a clean digital illustration
+- White background, clean black lines, professional appearance (like a textbook figure)
+- Accurate geometry: correct shapes, curves, angles, and proportions
+- Include all labels, annotations, axis labels, and arrows described
+- Use clear, readable fonts for all text/labels
+- Do NOT include any surrounding equations, definitions, or handwritten text from the board
+- The output image should contain ONLY the diagram, nothing else
+- High resolution and high contrast{diagram_block}{caption_block}{exclude_block}"""
     
     try:
         resp = requests.post(
