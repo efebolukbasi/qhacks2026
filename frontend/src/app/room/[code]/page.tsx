@@ -56,34 +56,14 @@ export default function StudentRoomPage() {
   const articleRef = useRef<HTMLElement>(null);
   const [newSectionIds, setNewSectionIds] = useState<Set<string>>(new Set());
 
-  // Fetch room info
-  useEffect(() => {
-    async function loadRoom() {
-      try {
-        const res = await fetch(`${BACKEND_URL}/rooms/${code}`);
-        if (!res.ok) {
-          router.push("/");
-          return;
-        }
-        const data = await res.json();
-        setRoom(data);
-      } catch {
-        router.push("/");
-      }
-    }
-    loadRoom();
-  }, [code, router]);
-
-  // Fetch notes from Supabase
-  const fetchNotes = useCallback(async () => {
-    if (!room) return;
+  // Fetch notes for a given room_id directly from Supabase
+  const fetchNotesForRoom = useCallback(async (roomId: string) => {
     const sb = getSupabase();
 
-    // Fetch notes, highlights, and comments
     const [notesRes, hlRes, commentsRes] = await Promise.all([
-      sb.from("lecture_notes").select("*").eq("room_id", room.id).order("id"),
-      sb.from("highlights").select("section_id, highlight_count").eq("room_id", room.id),
-      sb.from("comments").select("*").eq("room_id", room.id).order("created_at"),
+      sb.from("lecture_notes").select("*").eq("room_id", roomId).order("id"),
+      sb.from("highlights").select("section_id, highlight_count").eq("room_id", roomId),
+      sb.from("comments").select("*").eq("room_id", roomId).order("created_at"),
     ]);
 
     if (commentsRes.data) {
@@ -121,16 +101,53 @@ export default function StudentRoomPage() {
       notesRef.current = mapped;
       prevNoteIdsRef.current = new Set(mapped.map((n) => n.section_id));
     }
-  }, [room]);
+  }, []);
 
-  // Initial fetch + Supabase Realtime subscription
+  // Stable wrapper that uses current room state (for realtime callbacks)
+  const fetchNotes = useCallback(async () => {
+    if (!room) return;
+    await fetchNotesForRoom(room.id);
+  }, [room, fetchNotesForRoom]);
+
+  // Fetch room info + notes in parallel, then subscribe to realtime
+  useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      const sb = getSupabase();
+
+      // Fetch room from Supabase directly (one hop) and from backend in parallel
+      const [sbRoom, backendRes] = await Promise.all([
+        sb.from("rooms").select("id, code, name").eq("code", code).eq("is_active", true).single(),
+        fetch(`${BACKEND_URL}/rooms/${code}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
+
+      if (cancelled) return;
+
+      const roomData: Room | null = sbRoom.data
+        ? { id: sbRoom.data.id, code: sbRoom.data.code, name: sbRoom.data.name }
+        : backendRes
+          ? { id: backendRes.id, code: backendRes.code, name: backendRes.name }
+          : null;
+
+      if (!roomData) {
+        router.push("/");
+        return;
+      }
+
+      setRoom(roomData);
+
+      // Immediately fetch notes — no extra render cycle needed
+      await fetchNotesForRoom(roomData.id);
+    }
+
+    init();
+    return () => { cancelled = true; };
+  }, [code, router, fetchNotesForRoom]);
+
+  // Supabase Realtime subscription (separate effect, depends on room)
   useEffect(() => {
     if (!room) return;
-
-    const load = async () => {
-      await fetchNotes();
-    };
-    load();
 
     const sb = getSupabase();
     const channel = sb
