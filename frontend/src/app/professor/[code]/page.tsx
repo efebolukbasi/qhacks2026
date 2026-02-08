@@ -510,15 +510,13 @@ export default function ProfessorRoomPage() {
                 {sortedByHighlights.slice(0, 8).map((note, i) => {
                   const maxCount = sortedByHighlights[0]?.highlight_count || 1;
                   const barWidth = maxCount > 0 ? (note.highlight_count / maxCount) * 100 : 0;
-                  const isLong = note.content.length > 80;
                   const isOpen = expandedEngagement === note.section_id;
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={note.section_id}
-                      className={`relative rounded p-2 transition-all ${isLong ? "cursor-pointer" : ""
-                        }`}
+                      className="relative rounded p-2 transition-all cursor-pointer text-left w-full"
                       onClick={() =>
-                        isLong &&
                         setExpandedEngagement(
                           isOpen ? null : note.section_id
                         )
@@ -542,7 +540,7 @@ export default function ProfessorRoomPage() {
                           >
                             <LatexContent text={note.content} />
                           </div>
-                          {!isOpen && isLong && (
+                          {!isOpen && (
                             <span className="text-on-dark-dim/60 text-[11px]">…</span>
                           )}
                         </div>
@@ -554,14 +552,12 @@ export default function ProfessorRoomPage() {
                         >
                           {note.highlight_count}
                         </span>
-                        {isLong && (
-                          <span className={`text-[10px] text-on-dark-dim/50 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
-                            }`}>
-                            ▼
-                          </span>
-                        )}
+                        <span className={`text-[10px] text-on-dark-dim/50 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
+                          }`}>
+                          ▼
+                        </span>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
