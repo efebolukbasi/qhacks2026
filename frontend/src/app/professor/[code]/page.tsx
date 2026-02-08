@@ -379,9 +379,8 @@ export default function ProfessorRoomPage() {
               Students Connected
             </p>
             <p className="mt-0.5 flex items-center justify-center gap-2 font-mono text-xl font-bold text-cream">
-              <span className={`inline-block h-2 w-2 rounded-full ${
-                studentCount > 0 ? "bg-copper animate-pulse" : "bg-on-dark-dim/30"
-              }`} />
+              <span className={`inline-block h-2 w-2 rounded-full ${studentCount > 0 ? "bg-copper animate-pulse" : "bg-on-dark-dim/30"
+                }`} />
               {studentCount}
             </p>
           </div>
@@ -478,7 +477,7 @@ export default function ProfessorRoomPage() {
                     disabled={capturing}
                     className="rounded border border-rule bg-bg-raised px-2 py-1 font-mono text-[10px] text-on-dark outline-none"
                   >
-                    <option value={10}>10s</option>
+                    <option value={5}>5s</option>
                     <option value={15}>15s</option>
                     <option value={30}>30s</option>
                     <option value={60}>60s</option>
@@ -516,9 +515,8 @@ export default function ProfessorRoomPage() {
                   return (
                     <div
                       key={note.section_id}
-                      className={`relative rounded p-2 transition-all ${
-                        isLong ? "cursor-pointer" : ""
-                      }`}
+                      className={`relative rounded p-2 transition-all ${isLong ? "cursor-pointer" : ""
+                        }`}
                       onClick={() =>
                         isLong &&
                         setExpandedEngagement(
@@ -549,18 +547,16 @@ export default function ProfessorRoomPage() {
                           )}
                         </div>
                         <span
-                          className={`mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-bold ${
-                            note.highlight_count > 0
+                          className={`mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-bold ${note.highlight_count > 0
                               ? "bg-cinnabar text-cream"
                               : "bg-bg-raised text-on-dark-dim"
-                          }`}
+                            }`}
                         >
                           {note.highlight_count}
                         </span>
                         {isLong && (
-                          <span className={`text-[10px] text-on-dark-dim/50 transition-transform duration-200 ${
-                            isOpen ? "rotate-180" : ""
-                          }`}>
+                          <span className={`text-[10px] text-on-dark-dim/50 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
+                            }`}>
                             ▼
                           </span>
                         )}

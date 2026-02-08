@@ -16,7 +16,7 @@ PROMPT = r"""You are converting a photograph of a chalkboard/whiteboard into cle
 
 RULES:
 1. Extract ONLY what is clearly written on the board. Do NOT hallucinate or add content.
-2. If handwriting is unclear, omit it entirely.
+2. If handwriting is unclear or a person/object is blocking part of the board, omit the blocked content entirely rather than guessing. It is MUCH better to leave content out than to produce incorrect or garbled notes.
 3. ALL math must be wrapped in LaTeX delimiters:
    - Inline math: $...$  (e.g. $x^2 + y^2 = r^2$)
    - Display math: $$...$$ (e.g. $$\int_0^1 f(x)\,dx$$)
@@ -272,15 +272,41 @@ def generate_diagram_image(
         return None
 
 
-def _build_prompt(existing_sections: list[dict] | None = None) -> str:
+def _build_prompt(
+    existing_sections: list[dict] | None = None,
+    has_previous_image: bool = False,
+) -> str:
     """Build the full prompt, injecting existing section summaries when available.
 
     Args:
         existing_sections: List of dicts with keys section_id, type, and
             content_preview.  When None or empty the base prompt is returned.
+        has_previous_image: When True, the message will contain two images
+            (previous capture first, current capture second).  Extra instructions
+            are appended so the AI merges information from both frames.
     """
+    base = PROMPT
+
+    # Multi-frame occlusion handling
+    if has_previous_image:
+        base += (
+            "\n\nMULTI-FRAME CONTEXT:\n"
+            "You are being given TWO images of the same board taken moments apart.\n"
+            "- IMAGE 1 (first) is a PREVIOUS capture of the board.\n"
+            "- IMAGE 2 (second) is the CURRENT/LATEST capture.\n\n"
+            "A person (the professor) may be blocking parts of the board in one or both frames.\n"
+            "RULES for multi-frame merging:\n"
+            "- Use the CLEAREST view of each section across both frames.\n"
+            "- If content is visible in the previous frame but blocked in the current frame, use the previous frame's version.\n"
+            "- If content is visible in the current frame but was blocked before, use the current frame.\n"
+            "- If content appears in BOTH frames, prefer the current frame (it may have updates).\n"
+            "- If content is blocked in BOTH frames, omit it entirely — do NOT guess.\n"
+            "- NEVER produce garbled or half-complete sections. If you cannot read something clearly in either frame, leave it out.\n"
+            "- For diagrams: if the diagram is partially blocked in the current frame but was clear in the previous frame, describe the diagram based on the previous frame."
+        )
+
     if not existing_sections:
-        return PROMPT
+        return base
 
     # Find the highest block/diag numbers so the AI knows where to continue
     max_block = 0
@@ -315,15 +341,19 @@ def _build_prompt(existing_sections: list[dict] | None = None) -> str:
         f"- Only create a NEW section_id for content that is genuinely new and not covered by any existing section.\n"
         f"- For new content, continue numbering from "
         f"block-{max_block + 1} / diag-{max_diag + 1}.\n"
-        f"- Do NOT restart numbering from block-1."
+        f"- Do NOT restart numbering from block-1.\n"
+        f"- If a section's content is BLOCKED by a person in the current frame, "
+        f"reuse the existing section_id with the SAME content (do NOT replace good content with partial/garbled content)."
     )
-    return PROMPT + context
+    return base + context
 
 
 def send_image_to_gemini(
     image_path: str,
     generate_diagrams: bool = True,
     existing_sections: list[dict] | None = None,
+    previous_image_b64: str | None = None,
+    previous_image_mime: str | None = None,
 ) -> list[dict]:
     """Process chalkboard image and optionally generate images for diagrams.
 
@@ -336,6 +366,8 @@ def send_image_to_gemini(
         existing_sections: Section summaries already stored for this room
             (each dict has section_id, type, content_preview), used to avoid
             duplicating notes across captures.
+        previous_image_b64: Base64-encoded previous capture image (if available).
+        previous_image_mime: MIME type of the previous image.
 
     Returns:
         List of section dictionaries with content
@@ -346,9 +378,26 @@ def send_image_to_gemini(
     ext = image_path.lower().rsplit(".", 1)[-1] if "." in image_path else "jpeg"
     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(ext, "image/jpeg")
 
+    has_previous = previous_image_b64 is not None
     existing_ids = [s["section_id"] for s in existing_sections] if existing_sections else []
-    prompt = _build_prompt(existing_sections)
-    logger.info(f"Sending image to OpenRouter model={OPENROUTER_MODEL}, mime={mime}, base64_len={len(image_data)}, existing_ids={existing_ids}")
+    prompt = _build_prompt(existing_sections, has_previous_image=has_previous)
+    logger.info(
+        f"Sending image to OpenRouter model={OPENROUTER_MODEL}, mime={mime}, "
+        f"base64_len={len(image_data)}, existing_ids={existing_ids}, "
+        f"has_previous_frame={has_previous}"
+    )
+
+    # Build message content: prompt text + optional previous image + current image
+    content_parts: list[dict] = [{"type": "text", "text": prompt}]
+    if has_previous:
+        content_parts.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{previous_image_mime};base64,{previous_image_b64}"},
+        })
+    content_parts.append({
+        "type": "image_url",
+        "image_url": {"url": f"data:{mime};base64,{image_data}"},
+    })
 
     resp = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
@@ -361,14 +410,11 @@ def send_image_to_gemini(
             "messages": [
                 {
                     "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_data}"}},
-                    ],
+                    "content": content_parts,
                 }
             ],
         },
-        timeout=90,
+        timeout=120,
     )
 
     if not resp.ok:

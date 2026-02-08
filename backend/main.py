@@ -1,6 +1,7 @@
 import os
 import uuid
 import asyncio
+import base64
 import logging
 import tempfile
 from pathlib import Path
@@ -44,6 +45,11 @@ app.add_middleware(
 
 # Per-room locks to serialise image uploads and prevent duplicate sections
 _room_locks: dict[str, asyncio.Lock] = {}
+
+# Store the previous capture's image (base64) per room so we can send two
+# frames to the AI for occlusion handling (professor blocking the board).
+# Each entry is (base64_data, mime_type).
+_previous_captures: dict[str, tuple[str, str]] = {}
 
 
 def _get_room_lock(room_id: str) -> asyncio.Lock:
@@ -112,6 +118,13 @@ async def upload_image(code: str, file: UploadFile = File(...)):
         tmp.write(contents)
         tmp_path = tmp.name
 
+    # Read the current image into base64 before entering the lock
+    # (we'll store it as the "previous" capture after processing).
+    current_b64 = base64.b64encode(contents).decode("utf-8")
+    current_mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(
+        ext.lstrip(".").lower(), "image/jpeg"
+    )
+
     # Acquire per-room lock so concurrent uploads are processed one at a
     # time, ensuring each request sees the section IDs written by the
     # previous one (prevents duplicate diagrams / section IDs).
@@ -119,9 +132,19 @@ async def upload_image(code: str, file: UploadFile = File(...)):
     async with lock:
         existing_sections = get_existing_sections_summary(room["id"])
 
+        # Retrieve the previous frame for this room (if any)
+        prev = _previous_captures.get(room["id"])
+        prev_b64 = prev[0] if prev else None
+        prev_mime = prev[1] if prev else None
+
         try:
             sections = await asyncio.to_thread(
-                send_image_to_gemini, tmp_path, True, existing_sections
+                send_image_to_gemini,
+                tmp_path,
+                True,
+                existing_sections,
+                prev_b64,
+                prev_mime,
             )
         except Exception as e:
             logger.error(f"Gemini API error: {e}")
@@ -129,6 +152,9 @@ async def upload_image(code: str, file: UploadFile = File(...)):
         finally:
             # Clean up temp file
             Path(tmp_path).unlink(missing_ok=True)
+
+        # Store current image as the previous capture for next time
+        _previous_captures[room["id"]] = (current_b64, current_mime)
 
         # Build a lookup of existing sections that already have images
         existing_images = {
