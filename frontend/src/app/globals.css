@@ -64,6 +64,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Scale up the entire UI on larger screens so it doesn't feel tiny.
+   Mobile stays at 100%; tablets get 120%; desktops/laptops get ~150%. */
+@media (min-width: 768px) {
+  html { zoom: 1.2; }
+}
+@media (min-width: 1280px) {
+  html { zoom: 1.4; }
+}
+
 /* Grain — barely visible, adds material feel */
 body::after {
   content: '';
