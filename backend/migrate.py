@@ -120,10 +120,64 @@ with conn.cursor() as cur:
     """)
     print("  ✓ increment_highlight function")
 
-    # --- Disable RLS for simplicity (hackathon) ---
-    for table in ["rooms", "lecture_notes", "highlights", "comments"]:
-        cur.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY;")
-    print("  ✓ RLS disabled (hackathon mode)")
+    # --- Enable RLS + read policies for client access (professor_key never exposed) ---
+    cur.execute("""
+        -- Helper: check if a room is active (SECURITY DEFINER so anon can use it in policies
+        -- without needing SELECT on rooms; avoids exposing professor_key)
+        CREATE OR REPLACE FUNCTION public.room_is_active(rid UUID)
+        RETURNS boolean
+        LANGUAGE sql
+        SECURITY DEFINER
+        SET search_path = public
+        AS $$
+          SELECT EXISTS (SELECT 1 FROM public.rooms WHERE id = rid AND is_active = true);
+        $$;
+
+        -- Ensure RLS is enabled on core tables
+        ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.lecture_notes ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.highlights ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
+
+        -- Rooms: no direct SELECT for anon (would expose professor_key).
+        -- Only service role (backend) can read the table. Clients use view rooms_public.
+        DROP POLICY IF EXISTS rooms_select_active ON public.rooms;
+        -- No SELECT policy for anon/authenticated on rooms => they cannot read it.
+
+        -- Public view: room info without professor_key (safe for anon)
+        CREATE OR REPLACE VIEW public.rooms_public
+        WITH (security_invoker = false)
+        AS
+          SELECT id, code, name, is_active, created_at
+          FROM public.rooms
+          WHERE is_active = true;
+        GRANT SELECT ON public.rooms_public TO anon, authenticated;
+
+        -- Allow read access to lecture notes for active rooms (using helper, no rooms access)
+        DROP POLICY IF EXISTS lecture_notes_select_active_rooms ON public.lecture_notes;
+        CREATE POLICY lecture_notes_select_active_rooms
+          ON public.lecture_notes
+          FOR SELECT
+          TO anon, authenticated
+          USING (public.room_is_active(room_id));
+
+        -- Allow read access to highlights for active rooms
+        DROP POLICY IF EXISTS highlights_select_active_rooms ON public.highlights;
+        CREATE POLICY highlights_select_active_rooms
+          ON public.highlights
+          FOR SELECT
+          TO anon, authenticated
+          USING (public.room_is_active(room_id));
+
+        -- Allow read access to comments for active rooms
+        DROP POLICY IF EXISTS comments_select_active_rooms ON public.comments;
+        CREATE POLICY comments_select_active_rooms
+          ON public.comments
+          FOR SELECT
+          TO anon, authenticated
+          USING (public.room_is_active(room_id));
+    """)
+    print("  ✓ RLS enabled with read policies for clients")
 
     # --- Enable Supabase Realtime on tables ---
     for table in ["lecture_notes", "highlights", "comments"]:

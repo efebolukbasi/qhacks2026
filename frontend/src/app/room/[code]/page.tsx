@@ -118,7 +118,7 @@ export default function StudentRoomPage() {
 
       // Fetch room from Supabase directly (one hop) and from backend in parallel
       const [sbRoom, backendRes] = await Promise.all([
-        sb.from("rooms").select("id, code, name").eq("code", code).eq("is_active", true).single(),
+        sb.from("rooms_public").select("id, code, name").eq("code", code).single(),
         fetch(`${BACKEND_URL}/rooms/${code}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
 
