@@ -36,6 +36,19 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+
+@app.get("/")
+async def health():
+    """Health check + debug env."""
+    url = os.getenv("SUPABASE_URL", "NOT SET")
+    # Mask the middle of the URL for safety, but show enough to debug
+    return {
+        "status": "ok",
+        "supabase_url": url[:20] + "..." + url[-15:] if len(url) > 35 else url,
+        "supabase_key_set": bool(os.getenv("SUPABASE_KEY")),
+    }
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
